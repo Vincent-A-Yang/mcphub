@@ -156,11 +156,6 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Set default keep-alive interval for SSE servers if not specified
-    if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // Default 60 seconds for SSE servers
-    }
-
     // Set owner property - use current user's username, default to 'admin'
     if (!config.owner) {
       const currentUser = (req as any).user;
@@ -297,11 +292,6 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
         message: 'Headers are not supported for stdio server type',
       });
       return;
-    }
-
-    // Set default keep-alive interval for SSE servers if not specified
-    if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // Default 60 seconds for SSE servers
     }
 
     // Set owner property if not provided - use current user's username, default to 'admin'

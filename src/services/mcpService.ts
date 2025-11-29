@@ -31,8 +31,14 @@ const servers: { [sessionId: string]: Server } = {};
 
 // Helper function to set up keep-alive ping for SSE connections
 const setupKeepAlive = (serverInfo: ServerInfo, serverConfig: ServerConfig): void => {
-  // Only set up keep-alive for SSE connections
+  // Only set up keep-alive for SSE connections when keepAlive is explicitly enabled
   if (!(serverInfo.transport instanceof SSEClientTransport)) {
+    return;
+  }
+
+  // Check if keepAlive is explicitly enabled (default is false to avoid excessive API calls)
+  if (serverConfig.keepAlive !== true) {
+    console.log(`Keep-alive ping disabled for server: ${serverInfo.name} (set keepAlive: true to enable)`);
     return;
   }
 

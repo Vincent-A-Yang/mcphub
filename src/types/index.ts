@@ -266,7 +266,8 @@ export interface ServerConfig {
   headers?: Record<string, string>; // HTTP headers for SSE/streamable-http/openapi servers
   enabled?: boolean; // Flag to enable/disable the server
   owner?: string; // Owner of the server, defaults to 'admin' user
-  keepAliveInterval?: number; // Keep-alive ping interval in milliseconds (default: 60000ms for SSE servers)
+  keepAlive?: boolean; // Enable keep-alive ping for SSE servers (default: false - disabled to avoid excessive API calls)
+  keepAliveInterval?: number; // Keep-alive ping interval in milliseconds (default: 60000ms when keepAlive is enabled)
   tools?: Record<string, { enabled: boolean; description?: string }>; // Tool-specific configurations with enable/disable state and custom descriptions
   prompts?: Record<string, { enabled: boolean; description?: string }>; // Prompt-specific configurations with enable/disable state and custom descriptions
   options?: Partial<Pick<RequestOptions, 'timeout' | 'resetTimeoutOnProgress' | 'maxTotalTimeout'>>; // MCP request options configuration

@@ -13,6 +13,7 @@ export const createMockSettings = (overrides: Partial<McpSettings> = {}): McpSet
         args: ['-y', 'time-mcp'],
         env: {},
         enabled: true,
+        keepAlive: false,
         keepAliveInterval: 30000,
         type: 'stdio',
       } as ServerConfig,
