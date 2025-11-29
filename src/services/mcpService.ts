@@ -38,7 +38,6 @@ const setupKeepAlive = (serverInfo: ServerInfo, serverConfig: ServerConfig): voi
 
   // Check if keepAlive is explicitly enabled (default is false to avoid excessive API calls)
   if (serverConfig.keepAlive !== true) {
-    console.log(`Keep-alive ping disabled for server: ${serverInfo.name} (set keepAlive: true to enable)`);
     return;
   }
 
