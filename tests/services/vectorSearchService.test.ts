@@ -53,11 +53,7 @@ describe('vectorSearchService', () => {
       // When serverNames is an empty array (empty group), no results should be returned
       const result = await searchToolsByVector('test query', 10, 0.3, []);
 
-      // searchByText should NOT be called because we return early with empty results
-      const mockRepository = (getRepositoryFactory as jest.Mock)();
-      expect(mockRepository.searchByText).not.toHaveBeenCalled;
-
-      // Result should be empty
+      // Result should be empty when an empty server list is passed
       expect(result).toEqual([]);
     });
 
