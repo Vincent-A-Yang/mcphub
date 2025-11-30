@@ -283,6 +283,12 @@ export const searchToolsByVector = async (
   }>
 > => {
   try {
+    // If serverNames is an empty array (not undefined), return empty results
+    // This happens when using $smart/{group} with an empty or non-existent group
+    if (serverNames !== undefined && serverNames.length === 0) {
+      return [];
+    }
+
     const vectorRepository = getRepositoryFactory(
       'vectorEmbeddings',
     )() as VectorEmbeddingRepository;
