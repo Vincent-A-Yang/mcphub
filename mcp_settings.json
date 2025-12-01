@@ -12,7 +12,7 @@
       "tools": {
         "amap-maps_regeocode": {
           "enabled": true,
-          "description": "My custom description"
+          "description": "Updated via UI test"
         }
       }
     },

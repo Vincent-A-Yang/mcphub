@@ -30,11 +30,8 @@ export const callTool = async (
       ? `/tools/${encodeURIComponent(server)}/${encodeURIComponent(request.toolName)}`
       : '/tools/call';
 
-    const response = await apiPost<any>(url, request.arguments, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`, // Add bearer auth for MCP routing
-      },
-    });
+    // Auth header is automatically added by the interceptor
+    const response = await apiPost<any>(url, request.arguments);
 
     if (response.success === false) {
       return {
@@ -66,14 +63,10 @@ export const toggleTool = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     // URL-encode server and tool names to handle slashes (e.g., "com.atlassian/atlassian-mcp-server")
+    // Auth header is automatically added by the interceptor
     const response = await apiPost<any>(
       `/servers/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}/toggle`,
       { enabled },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`,
-        },
-      },
     );
 
     return {
@@ -99,14 +92,10 @@ export const updateToolDescription = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     // URL-encode server and tool names to handle slashes (e.g., "com.atlassian/atlassian-mcp-server")
+    // Auth header is automatically added by the interceptor
     const response = await apiPut<any>(
       `/servers/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}/description`,
       { description },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`,
-        },
-      },
     );
 
     return {

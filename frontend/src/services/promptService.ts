@@ -126,14 +126,10 @@ export const updatePromptDescription = async (
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     // URL-encode server and prompt names to handle slashes (e.g., "com.atlassian/atlassian-mcp-server")
+    // Auth header is automatically added by the interceptor
     const response = await apiPut<any>(
       `/servers/${encodeURIComponent(serverName)}/prompts/${encodeURIComponent(promptName)}/description`,
       { description },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('mcphub_token')}`,
-        },
-      },
     );
 
     return {
