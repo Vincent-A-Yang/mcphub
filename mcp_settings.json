@@ -8,6 +8,12 @@
       ],
       "env": {
         "AMAP_MAPS_API_KEY": "your-api-key"
+      },
+      "tools": {
+        "amap-maps_regeocode": {
+          "enabled": true,
+          "description": "My custom description"
+        }
       }
     },
     "playwright": {
