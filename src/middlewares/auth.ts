@@ -19,7 +19,7 @@ const validateBearerAuth = (req: Request, routingConfig: any): boolean => {
   return authHeader.substring(7) === routingConfig.bearerAuthKey;
 };
 
-const readonlyAllowPaths = ['/tools/call/'];
+const readonlyAllowPaths = ['/tools/call/', '/auth/change-password'];
 
 const checkReadonly = (req: Request): boolean => {
   if (!defaultConfig.readonly) {
