@@ -1,0 +1,1221 @@
+---
+title: 'MCPHub Cluster Design'
+description: 'Detailed design document for MCPHub cluster functionality supporting multi-node deployment'
+---
+
+# MCPHub 集群功能设计方案
+
+## 1. 概述
+
+### 1.1 设计目标
+
+本方案旨在为 MCPHub 引入集群功能，支持多节点部署，实现以下目标：
+
+- **高可用性**：通过多节点部署，避免单点故障
+- **水平扩展**：支持动态增加 Worker 节点，提升 MCP Server 承载能力
+- **负载均衡**：智能分发客户端请求到各节点，均衡系统负载
+- **会话亲和性**：保证客户端 SSE 连接的稳定性（Sticky Session）
+- **副本管理**：支持为单个 MCP Server 配置多个运行副本
+- **兼容现有部署**：不影响现有单节点部署和使用方式
+
+### 1.2 架构概览
+
+```
+                           ┌─────────────────────────────────────────────────────────┐
+                           │                     Master Node                         │
+                           │  ┌──────────┐  ┌───────────┐  ┌───────────────────────┐│
+   Client Requests ───────►│  │   UI     │  │  API      │  │  Cluster Coordinator  ││
+   (HTTP/SSE/MCP)          │  │ (React)  │  │  Routes   │  │  - Node Registry      ││
+                           │  └──────────┘  └───────────┘  │  - Load Balancer      ││
+                           │                               │  - Session Manager    ││
+                           │  ┌───────────────────────────┐│  - Health Monitor     ││
+                           │  │   Local MCP Servers       │└───────────────────────┘│
+                           │  │   (Optional)              │                         │
+                           │  └───────────────────────────┘                         │
+                           └───────────────────────┬─────────────────────────────────┘
+                                                   │
+                     ┌─────────────────────────────┼─────────────────────────────┐
+                     │                             │                             │
+                     ▼                             ▼                             ▼
+        ┌────────────────────┐      ┌────────────────────┐      ┌────────────────────┐
+        │    Worker Node 1   │      │    Worker Node 2   │      │    Worker Node N   │
+        │ ┌────────────────┐ │      │ ┌────────────────┐ │      │ ┌────────────────┐ │
+        │ │  MCP Server A  │ │      │ │  MCP Server A  │ │      │ │  MCP Server C  │ │
+        │ │  (Replica 1)   │ │      │ │  (Replica 2)   │ │      │ │  (Replica 1)   │ │
+        │ ├────────────────┤ │      │ ├────────────────┤ │      │ ├────────────────┤ │
+        │ │  MCP Server B  │ │      │ │  MCP Server C  │ │      │ │  MCP Server D  │ │
+        │ │  (Replica 1)   │ │      │ │  (Replica 2)   │ │      │ │  (Replica 1)   │ │
+        │ └────────────────┘ │      │ └────────────────┘ │      │ └────────────────┘ │
+        └────────────────────┘      └────────────────────┘      └────────────────────┘
+```
+
+## 2. 节点类型与职责
+
+### 2.1 Master 节点（主节点）
+
+Master 节点是集群的控制中心，负责：
+
+| 职责 | 描述 |
+|------|------|
+| **UI 服务** | 对外提供 React 前端管理界面 |
+| **API 网关** | 统一接收所有客户端 API 请求 |
+| **SSE/MCP 端点** | 提供 `/sse`, `/mcp` 端点，代理到对应的 Worker |
+| **节点注册** | 管理 Worker 节点的注册与注销 |
+| **健康监控** | 监控所有节点和 MCP Server 的运行状态 |
+| **负载均衡** | 根据策略分发请求到各 Worker 节点 |
+| **会话管理** | 维护 Session 到 Worker 的映射关系 |
+| **配置同步** | 将配置变更同步到所有 Worker 节点 |
+| **可选：运行 MCP Server** | Master 也可以运行本地 MCP Server |
+
+### 2.2 Worker 节点（从节点）
+
+Worker 节点是实际运行 MCP Server 的工作节点：
+
+| 职责 | 描述 |
+|------|------|
+| **运行 MCP Server** | 执行实际的 MCP Server 进程 |
+| **心跳上报** | 定期向 Master 上报自身状态 |
+| **接收配置** | 从 Master 接收 MCP Server 配置 |
+| **暴露内部 API** | 提供 Master 调用的内部管理 API |
+| **不对外暴露端点** | 不直接对外提供 UI/API/SSE/MCP 端点 |
+
+## 3. 核心模块设计
+
+### 3.1 新增类型定义
+
+```typescript
+// src/types/cluster.ts
+
+/**
+ * 节点角色
+ */
+export type NodeRole = 'master' | 'worker';
+
+/**
+ * 节点状态
+ */
+export type NodeStatus = 'online' | 'offline' | 'unhealthy';
+
+/**
+ * 集群节点信息
+ */
+export interface ClusterNode {
+  id: string;                      // 节点唯一标识 (UUID)
+  role: NodeRole;                  // 节点角色
+  host: string;                    // 节点主机地址 (IP 或域名)
+  port: number;                    // 节点端口
+  internalPort?: number;           // 内部通信端口 (默认与 port 相同)
+  status: NodeStatus;              // 节点状态
+  lastHeartbeat: number;           // 最后心跳时间戳
+  registeredAt: number;            // 注册时间戳
+  metadata?: {
+    hostname?: string;             // 主机名
+    version?: string;              // MCPHub 版本
+    os?: string;                   // 操作系统
+    cpuUsage?: number;             // CPU 使用率
+    memoryUsage?: number;          // 内存使用率
+  };
+}
+
+/**
+ * MCP Server 副本信息
+ */
+export interface ServerReplica {
+  id: string;                      // 副本唯一标识
+  serverName: string;              // MCP Server 名称
+  nodeId: string;                  // 运行节点 ID
+  status: 'running' | 'stopped' | 'error';
+  createdAt: number;
+  error?: string;
+}
+
+/**
+ * MCP Server 副本配置
+ */
+export interface ReplicaConfig {
+  serverName: string;              // MCP Server 名称
+  replicas: number;                // 期望副本数
+  affinity?: {
+    nodeIds?: string[];            // 首选节点列表
+    excludeNodeIds?: string[];     // 排除节点列表
+  };
+  strategy?: 'round-robin' | 'least-connections' | 'random';
+}
+
+/**
+ * 会话路由信息
+ */
+export interface SessionRoute {
+  sessionId: string;               // 客户端会话 ID
+  nodeId: string;                  // 关联的 Worker 节点 ID
+  serverName: string;              // 关联的 MCP Server 名称
+  replicaId: string;               // 关联的副本 ID
+  createdAt: number;
+  lastActivity: number;
+}
+
+/**
+ * 集群配置
+ */
+export interface ClusterConfig {
+  enabled: boolean;                // 是否启用集群模式
+  role: NodeRole;                  // 当前节点角色
+  nodeId?: string;                 // 节点 ID (自动生成或指定)
+  
+  // Master 节点配置
+  master?: {
+    host: string;                  // Master 地址 (Worker 连接用)
+    port: number;
+    heartbeatInterval?: number;    // 心跳间隔 (毫秒, 默认 5000)
+    heartbeatTimeout?: number;     // 心跳超时 (毫秒, 默认 15000)
+    loadBalanceStrategy?: 'round-robin' | 'least-connections' | 'weighted';
+  };
+  
+  // Worker 节点配置
+  worker?: {
+    masterUrl: string;             // Master 节点 URL
+    advertiseHost?: string;        // Worker 对外地址 (NAT 场景)
+    advertisePort?: number;        // Worker 对外端口
+    maxServers?: number;           // 最大运行 Server 数量
+  };
+  
+  // 通信安全配置
+  security?: {
+    token?: string;                // 节点间通信 Token
+    tlsEnabled?: boolean;          // 是否启用 TLS
+    tlsCert?: string;              // TLS 证书路径
+    tlsKey?: string;               // TLS 私钥路径
+  };
+}
+```
+
+### 3.2 集群协调器服务 (Master 端)
+
+```typescript
+// src/services/clusterCoordinatorService.ts
+
+/**
+ * 集群协调器 - 运行在 Master 节点
+ * 职责：
+ * - 管理 Worker 节点注册与心跳
+ * - 负载均衡与请求路由
+ * - 会话亲和性管理
+ * - 副本调度与管理
+ */
+export class ClusterCoordinatorService {
+  private nodes: Map<string, ClusterNode>;           // 已注册节点
+  private replicas: Map<string, ServerReplica[]>;    // Server -> 副本列表
+  private sessions: Map<string, SessionRoute>;       // 会话路由表
+  private replicaConfigs: Map<string, ReplicaConfig>; // 副本配置
+  
+  /**
+   * 注册 Worker 节点
+   */
+  async registerNode(nodeInfo: ClusterNode): Promise<void>;
+  
+  /**
+   * 处理心跳
+   */
+  async handleHeartbeat(nodeId: string, status: NodeHeartbeat): Promise<void>;
+  
+  /**
+   * 分配 MCP Server 到 Worker
+   */
+  async allocateServer(serverName: string, nodeId?: string): Promise<ServerReplica>;
+  
+  /**
+   * 根据负载均衡策略选择节点
+   */
+  async selectNode(serverName: string): Promise<ClusterNode>;
+  
+  /**
+   * 获取或创建会话路由
+   */
+  async getOrCreateSessionRoute(sessionId: string, serverName: string): Promise<SessionRoute>;
+  
+  /**
+   * 代理请求到 Worker 节点
+   */
+  async proxyToWorker(nodeId: string, path: string, options: RequestInit): Promise<Response>;
+  
+  /**
+   * 同步配置到所有 Worker
+   */
+  async syncConfigToWorkers(config: any): Promise<void>;
+  
+  /**
+   * 获取集群状态摘要
+   */
+  async getClusterStatus(): Promise<ClusterStatus>;
+  
+  /**
+   * 设置 Server 副本数
+   */
+  async setServerReplicas(serverName: string, replicas: number): Promise<void>;
+  
+  /**
+   * 重新调度副本 (节点故障时)
+   */
+  async rescheduleReplicas(failedNodeId: string): Promise<void>;
+}
+```
+
+### 3.3 Worker 代理服务 (Worker 端)
+
+```typescript
+// src/services/clusterWorkerService.ts
+
+/**
+ * Worker 代理服务 - 运行在 Worker 节点
+ * 职责：
+ * - 向 Master 注册和发送心跳
+ * - 接收并执行 MCP Server 管理指令
+ * - 上报本地 Server 状态
+ */
+export class ClusterWorkerService {
+  private masterClient: MasterClient;               // Master 通信客户端
+  private localServers: Map<string, ServerInfo>;    // 本地运行的 Server
+  
+  /**
+   * 连接到 Master 并注册
+   */
+  async connectToMaster(): Promise<void>;
+  
+  /**
+   * 发送心跳
+   */
+  async sendHeartbeat(): Promise<void>;
+  
+  /**
+   * 启动 MCP Server
+   */
+  async startServer(serverName: string, config: ServerConfig): Promise<ServerReplica>;
+  
+  /**
+   * 停止 MCP Server
+   */
+  async stopServer(serverName: string): Promise<void>;
+  
+  /**
+   * 获取本地 Server 状态
+   */
+  getLocalServerStatus(): ServerInfo[];
+  
+  /**
+   * 处理来自 Master 的配置更新
+   */
+  async handleConfigUpdate(config: any): Promise<void>;
+}
+```
+
+### 3.4 请求代理服务
+
+```typescript
+// src/services/clusterProxyService.ts
+
+/**
+ * 请求代理服务 - 运行在 Master 节点
+ * 职责：
+ * - 代理 SSE 连接到 Worker
+ * - 代理 MCP 请求到 Worker
+ * - 维护代理连接池
+ */
+export class ClusterProxyService {
+  private connectionPool: Map<string, ProxyConnection>;
+  
+  /**
+   * 代理 SSE 连接
+   * 建立 Client -> Master -> Worker 的 SSE 通道
+   */
+  async proxySseConnection(
+    req: Request, 
+    res: Response, 
+    targetNode: ClusterNode,
+    sessionId: string
+  ): Promise<void>;
+  
+  /**
+   * 代理 MCP POST 请求
+   */
+  async proxyMcpRequest(
+    req: Request,
+    res: Response,
+    targetNode: ClusterNode,
+    sessionId: string
+  ): Promise<void>;
+  
+  /**
+   * 代理 Tool 调用请求
+   */
+  async proxyToolCall(
+    serverName: string,
+    toolName: string,
+    args: any,
+    sessionId: string
+  ): Promise<any>;
+}
+```
+
+## 4. API 设计
+
+### 4.1 复用现有 API
+
+以下现有 API 可在 Worker 节点复用，Master 通过这些 API 与 Worker 通信：
+
+| API | 方法 | 用途 |
+|-----|------|------|
+| `/health` | GET | 节点健康检查 |
+| `/api/servers` | GET | 获取 Server 列表和状态 |
+| `/api/servers/:name` | GET | 获取单个 Server 配置 |
+| `/api/servers` | POST | 创建 Server |
+| `/api/servers/:name` | DELETE | 删除 Server |
+| `/api/servers/:name/toggle` | POST | 启用/禁用 Server |
+| `/api/servers/:name/reload` | POST | 重新加载 Server |
+| `/api/tools/call/:server` | POST | 调用 Tool |
+| `/sse/:group?` | GET | SSE 连接 |
+| `/mcp/:group?` | POST | MCP Streamable HTTP 请求 |
+
+### 4.2 新增集群管理 API
+
+```typescript
+// src/routes/clusterRoutes.ts
+
+// ==================== Master 端 API ====================
+
+/**
+ * 获取集群状态
+ * GET /api/cluster/status
+ */
+interface ClusterStatusResponse {
+  enabled: boolean;
+  role: 'master';
+  nodes: ClusterNode[];
+  totalReplicas: number;
+  healthyReplicas: number;
+  sessions: number;
+}
+
+/**
+ * 获取所有节点
+ * GET /api/cluster/nodes
+ */
+interface NodesResponse {
+  nodes: ClusterNode[];
+}
+
+/**
+ * 获取节点详情
+ * GET /api/cluster/nodes/:nodeId
+ */
+interface NodeDetailResponse {
+  node: ClusterNode;
+  servers: ServerReplica[];
+}
+
+/**
+ * 移除节点
+ * DELETE /api/cluster/nodes/:nodeId
+ */
+
+/**
+ * 获取 Server 副本配置
+ * GET /api/cluster/replicas/:serverName
+ */
+interface ReplicaConfigResponse {
+  serverName: string;
+  desiredReplicas: number;
+  currentReplicas: number;
+  replicas: ServerReplica[];
+}
+
+/**
+ * 设置 Server 副本数
+ * PUT /api/cluster/replicas/:serverName
+ */
+interface SetReplicasRequest {
+  replicas: number;
+  affinity?: {
+    nodeIds?: string[];
+    excludeNodeIds?: string[];
+  };
+}
+
+/**
+ * 获取会话路由表
+ * GET /api/cluster/sessions
+ */
+interface SessionsResponse {
+  sessions: SessionRoute[];
+}
+
+// ==================== Worker 端内部 API ====================
+
+/**
+ * 节点注册 (Worker -> Master)
+ * POST /internal/cluster/register
+ */
+interface RegisterRequest {
+  nodeId: string;
+  host: string;
+  port: number;
+  metadata?: ClusterNode['metadata'];
+}
+
+/**
+ * 心跳 (Worker -> Master)
+ * POST /internal/cluster/heartbeat
+ */
+interface HeartbeatRequest {
+  nodeId: string;
+  servers: Array<{
+    name: string;
+    status: 'connected' | 'disconnected';
+    tools: number;
+  }>;
+  metrics?: {
+    cpuUsage: number;
+    memoryUsage: number;
+    activeConnections: number;
+  };
+}
+
+/**
+ * 分配 Server (Master -> Worker)
+ * POST /internal/servers/allocate
+ */
+interface AllocateServerRequest {
+  serverName: string;
+  config: ServerConfig;
+  replicaId: string;
+}
+
+/**
+ * 释放 Server (Master -> Worker)
+ * POST /internal/servers/release
+ */
+interface ReleaseServerRequest {
+  serverName: string;
+  replicaId: string;
+}
+```
+
+## 5. 数据流与通信机制
+
+### 5.1 Worker 节点注册流程
+
+```
+┌────────────┐                                    ┌────────────┐
+│   Worker   │                                    │   Master   │
+└─────┬──────┘                                    └──────┬─────┘
+      │                                                  │
+      │  1. POST /internal/cluster/register              │
+      │  { nodeId, host, port, metadata }               │
+      │ ─────────────────────────────────────────────► │
+      │                                                  │
+      │  2. Response: { success, config, servers }       │
+      │ ◄───────────────────────────────────────────── │
+      │                                                  │
+      │  3. 启动分配的 MCP Servers                        │
+      │                                                  │
+      │  4. POST /internal/cluster/heartbeat (定期)      │
+      │  { nodeId, servers: [...], metrics }            │
+      │ ─────────────────────────────────────────────► │
+      │                                                  │
+```
+
+### 5.2 客户端请求路由流程 (SSE)
+
+```
+┌────────────┐         ┌────────────┐         ┌────────────┐
+│   Client   │         │   Master   │         │   Worker   │
+└─────┬──────┘         └──────┬─────┘         └──────┬─────┘
+      │                       │                      │
+      │ 1. GET /sse/group     │                      │
+      │ ─────────────────────►│                      │
+      │                       │                      │
+      │     2. 查询会话路由表    │                      │
+      │     3. 选择目标 Worker  │                      │
+      │                       │                      │
+      │                       │ 4. GET /sse/group    │
+      │                       │   (internal)          │
+      │                       │ ─────────────────────►│
+      │                       │                      │
+      │ 5. SSE Stream         │ ◄ ─ ─ ─ ─ ─ ─ ─ ─ ─ │
+      │   (proxied)           │   SSE Stream         │
+      │ ◄─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │                      │
+      │                       │                      │
+      │ 6. POST /messages     │                      │
+      │ ─────────────────────►│                      │
+      │                       │                      │
+      │                       │ 7. POST /messages    │
+      │                       │   (to same Worker)    │
+      │                       │ ─────────────────────►│
+      │                       │                      │
+```
+
+### 5.3 Tool 调用请求路由
+
+```
+┌────────────┐         ┌────────────┐         ┌────────────┐
+│   Client   │         │   Master   │         │   Worker   │
+└─────┬──────┘         └──────┬─────┘         └──────┬─────┘
+      │                       │                      │
+      │ 1. POST /mcp/group    │                      │
+      │   {call_tool: xxx}    │                      │
+      │ ─────────────────────►│                      │
+      │                       │                      │
+      │     2. 解析目标 Server  │                      │
+      │     3. 查找 Server 副本 │                      │
+      │     4. 负载均衡选择     │                      │
+      │                       │                      │
+      │                       │ 5. POST /api/tools/  │
+      │                       │   call/:server       │
+      │                       │ ─────────────────────►│
+      │                       │                      │
+      │                       │ 6. Tool Result       │
+      │                       │ ◄─────────────────────│
+      │                       │                      │
+      │ 7. Result (proxied)   │                      │
+      │ ◄─────────────────────│                      │
+      │                       │                      │
+```
+
+## 6. 负载均衡策略
+
+### 6.1 支持的策略
+
+| 策略 | 描述 | 适用场景 |
+|------|------|----------|
+| **Round Robin** | 轮询分发请求 | 节点配置相同时 |
+| **Least Connections** | 选择当前连接数最少的节点 | 长连接场景 (SSE) |
+| **Weighted** | 根据节点权重分发 | 节点性能差异大时 |
+
+### 6.2 会话亲和性 (Sticky Session)
+
+```typescript
+/**
+ * 会话亲和性实现
+ * 确保同一 Session 的所有请求路由到同一 Worker
+ */
+class SessionAffinityManager {
+  private sessionMap: Map<string, string>;  // sessionId -> nodeId
+  
+  /**
+   * 绑定会话到节点
+   */
+  bindSession(sessionId: string, nodeId: string): void;
+  
+  /**
+   * 获取会话绑定的节点
+   */
+  getNodeForSession(sessionId: string): string | undefined;
+  
+  /**
+   * 解绑会话 (连接关闭时)
+   */
+  unbindSession(sessionId: string): void;
+  
+  /**
+   * 节点故障时迁移会话
+   */
+  migrateSessionsFromNode(failedNodeId: string, newNodeId: string): void;
+}
+```
+
+## 7. 副本管理
+
+### 7.1 副本调度算法
+
+```typescript
+/**
+ * 副本调度器
+ * 负责将 MCP Server 副本分配到合适的 Worker 节点
+ */
+class ReplicaScheduler {
+  /**
+   * 计算最优节点分配
+   */
+  schedule(
+    serverName: string, 
+    desiredReplicas: number,
+    nodes: ClusterNode[],
+    currentReplicas: ServerReplica[]
+  ): ScheduleResult {
+    // 1. 过滤可用节点
+    const availableNodes = nodes.filter(n => 
+      n.status === 'online' && 
+      !this.isNodeExcluded(n, config.affinity)
+    );
+    
+    // 2. 计算每个节点的得分
+    const scores = availableNodes.map(node => ({
+      node,
+      score: this.calculateScore(node, serverName)
+    }));
+    
+    // 3. 按得分排序并选择
+    scores.sort((a, b) => b.score - a.score);
+    
+    // 4. 返回调度结果
+    return {
+      toCreate: [...],  // 需要在哪些节点创建副本
+      toRemove: [...],  // 需要移除哪些副本
+    };
+  }
+  
+  private calculateScore(node: ClusterNode, serverName: string): number {
+    let score = 100;
+    
+    // 已运行副本数越少得分越高
+    const currentCount = this.getReplicaCount(node.id, serverName);
+    score -= currentCount * 20;
+    
+    // CPU/内存使用率越低得分越高
+    if (node.metadata?.cpuUsage) {
+      score -= node.metadata.cpuUsage * 0.5;
+    }
+    
+    // 节点亲和性加分
+    if (this.hasAffinity(node.id, serverName)) {
+      score += 30;
+    }
+    
+    return score;
+  }
+}
+```
+
+### 7.2 副本生命周期
+
+```
+                 创建请求
+                    │
+                    ▼
+    ┌───────────────────────────────┐
+    │         Pending               │
+    │   (等待调度到 Worker)          │
+    └───────────────┬───────────────┘
+                    │ 调度成功
+                    ▼
+    ┌───────────────────────────────┐
+    │         Starting              │
+    │   (Worker 启动 Server 中)     │
+    └───────────────┬───────────────┘
+                    │ 启动成功
+                    ▼
+    ┌───────────────────────────────┐
+    │         Running               │◄───┐
+    │   (Server 运行中)             │    │ 健康检查通过
+    └───────────────┬───────────────┘    │
+                    │ 错误/停止          │
+                    ▼                    │
+    ┌───────────────────────────────┐    │
+    │         Error/Stopped         │────┘
+    │   (需要重试或移除)             │ 重试
+    └───────────────┬───────────────┘
+                    │ 删除
+                    ▼
+    ┌───────────────────────────────┐
+    │         Terminated            │
+    │   (副本已删除)                │
+    └───────────────────────────────┘
+```
+
+## 8. 健康检查与故障恢复
+
+### 8.1 健康检查机制
+
+```typescript
+/**
+ * 健康检查器
+ */
+class HealthChecker {
+  private checkInterval: number = 5000;       // 检查间隔 (毫秒)
+  private unhealthyThreshold: number = 3;     // 连续失败次数阈值
+  private failureCounts: Map<string, number>; // 节点失败计数
+  
+  /**
+   * 执行健康检查
+   */
+  async checkNode(node: ClusterNode): Promise<HealthStatus> {
+    try {
+      // 调用 Worker 的 /health 端点
+      const response = await fetch(`http://${node.host}:${node.port}/health`, {
+        timeout: 3000,
+        headers: { 'X-Cluster-Token': this.token }
+      });
+      
+      if (response.ok) {
+        this.failureCounts.set(node.id, 0);
+        return { healthy: true };
+      }
+    } catch (error) {
+      // 累加失败次数
+      const count = (this.failureCounts.get(node.id) || 0) + 1;
+      this.failureCounts.set(node.id, count);
+      
+      if (count >= this.unhealthyThreshold) {
+        return { healthy: false, reason: 'consecutive_failures' };
+      }
+    }
+    
+    return { healthy: true }; // 尚未达到阈值
+  }
+  
+  /**
+   * 处理节点故障
+   */
+  async handleNodeFailure(nodeId: string): Promise<void> {
+    // 1. 标记节点为 offline
+    await this.coordinator.markNodeOffline(nodeId);
+    
+    // 2. 重新调度该节点上的副本
+    await this.coordinator.rescheduleReplicas(nodeId);
+    
+    // 3. 通知管理员 (可选)
+    await this.notifyAdmin(`Node ${nodeId} is offline`);
+  }
+}
+```
+
+### 8.2 故障恢复流程
+
+```
+Worker 节点故障
+      │
+      ▼
+┌─────────────────────────────┐
+│ Master 检测到心跳超时        │
+│ (连续 3 次健康检查失败)      │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ 标记节点为 offline           │
+│ 更新节点状态到 UI            │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ 获取故障节点上的所有副本     │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ 调用 ReplicaScheduler        │
+│ 重新调度副本到其他健康节点    │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ 迁移相关会话到新节点         │
+│ (如启用会话重建)             │
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ 故障恢复完成                 │
+│ 系统继续正常服务             │
+└─────────────────────────────┘
+```
+
+## 9. 配置管理
+
+### 9.1 集群配置示例
+
+```json
+// 环境变量或配置文件
+{
+  "cluster": {
+    "enabled": true,
+    "role": "master",
+    "nodeId": "master-001",
+    "master": {
+      "host": "0.0.0.0",
+      "port": 3000,
+      "heartbeatInterval": 5000,
+      "heartbeatTimeout": 15000,
+      "loadBalanceStrategy": "least-connections"
+    },
+    "security": {
+      "token": "your-cluster-secret-token",
+      "tlsEnabled": false
+    }
+  }
+}
+```
+
+```json
+// Worker 节点配置
+{
+  "cluster": {
+    "enabled": true,
+    "role": "worker",
+    "nodeId": "worker-001",
+    "worker": {
+      "masterUrl": "http://master-host:3000",
+      "advertiseHost": "worker-001.internal",
+      "advertisePort": 3001,
+      "maxServers": 20
+    },
+    "security": {
+      "token": "your-cluster-secret-token"
+    }
+  }
+}
+```
+
+### 9.2 环境变量配置
+
+| 环境变量 | 描述 | 默认值 |
+|----------|------|--------|
+| `CLUSTER_ENABLED` | 启用集群模式 | `false` |
+| `CLUSTER_ROLE` | 节点角色 (master/worker) | - |
+| `CLUSTER_NODE_ID` | 节点 ID | 自动生成 UUID |
+| `CLUSTER_MASTER_HOST` | Master 主机地址 | `0.0.0.0` |
+| `CLUSTER_MASTER_PORT` | Master 端口 | `3000` |
+| `CLUSTER_MASTER_URL` | Master URL (Worker 用) | - |
+| `CLUSTER_TOKEN` | 集群通信 Token | - |
+| `CLUSTER_HEARTBEAT_INTERVAL` | 心跳间隔 (ms) | `5000` |
+| `CLUSTER_HEARTBEAT_TIMEOUT` | 心跳超时 (ms) | `15000` |
+| `CLUSTER_ADVERTISE_HOST` | Worker 对外地址 | - |
+| `CLUSTER_ADVERTISE_PORT` | Worker 对外端口 | - |
+
+## 10. 前端 UI 扩展
+
+### 10.1 集群仪表板
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Cluster Dashboard                                        [Refresh] │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐      │
+│  │  Total Nodes    │  │  Online Nodes   │  │  Total Replicas │      │
+│  │       4         │  │       3         │  │       12        │      │
+│  │                 │  │                 │  │                 │      │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘      │
+│                                                                     │
+│  Nodes                                                              │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ ● master-001  │ Master  │ 192.168.1.10:3000 │ Online │ 0/0  │   │
+│  │ ● worker-001  │ Worker  │ 192.168.1.11:3001 │ Online │ 5/20 │   │
+│  │ ● worker-002  │ Worker  │ 192.168.1.12:3001 │ Online │ 4/20 │   │
+│  │ ○ worker-003  │ Worker  │ 192.168.1.13:3001 │ Offline│ -    │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 副本管理界面
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Server: fetch                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Replicas:  ← 2 →   [Apply]                                        │
+│                                                                     │
+│  Current Replicas:                                                  │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ fetch-replica-1  │ worker-001 │ ● Running  │ Since: 2h ago  │   │
+│  │ fetch-replica-2  │ worker-002 │ ● Running  │ Since: 1h ago  │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  Node Affinity:                                                     │
+│  □ worker-001   ☑ worker-002   □ worker-003 (offline)              │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## 11. 单节点兼容性
+
+### 11.1 兼容性设计
+
+为确保集群功能不影响现有单节点部署：
+
+1. **默认关闭**：`CLUSTER_ENABLED=false` 为默认值
+2. **条件加载**：集群相关服务只在启用时初始化
+3. **代码隔离**：集群逻辑封装在独立模块，通过依赖注入使用
+4. **无缝切换**：同一镜像支持单节点/集群两种模式
+
+```typescript
+// src/server.ts 修改示例
+
+export class AppServer {
+  private clusterCoordinator?: ClusterCoordinatorService;
+  private clusterWorker?: ClusterWorkerService;
+  
+  async initialize(): Promise<void> {
+    // ... 现有初始化代码 ...
+    
+    // 条件初始化集群功能
+    if (config.cluster?.enabled) {
+      if (config.cluster.role === 'master') {
+        this.clusterCoordinator = new ClusterCoordinatorService();
+        await this.clusterCoordinator.start();
+        console.log('Cluster coordinator started (Master mode)');
+      } else if (config.cluster.role === 'worker') {
+        this.clusterWorker = new ClusterWorkerService();
+        await this.clusterWorker.connectToMaster();
+        console.log('Connected to master node (Worker mode)');
+      }
+    } else {
+      console.log('Running in standalone mode');
+    }
+  }
+}
+```
+
+### 11.2 路由适配
+
+```typescript
+// src/middlewares/clusterMiddleware.ts
+
+/**
+ * 集群路由中间件
+ * 在 Master 模式下，根据会话路由请求到对应 Worker
+ * 在单节点或 Worker 模式下，直接处理请求
+ */
+export const clusterRouteMiddleware = async (
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+) => {
+  // 单节点模式或 Worker 模式 - 直接处理
+  if (!config.cluster?.enabled || config.cluster.role !== 'master') {
+    return next();
+  }
+  
+  // Master 模式 - 检查是否需要代理
+  const sessionId = req.headers['mcp-session-id'] as string;
+  
+  if (sessionId) {
+    const route = await clusterCoordinator.getSessionRoute(sessionId);
+    if (route && route.nodeId !== config.cluster.nodeId) {
+      // 代理到 Worker
+      return clusterProxy.proxyToWorker(route.nodeId, req, res);
+    }
+  }
+  
+  // 本地处理
+  next();
+};
+```
+
+## 12. Docker 部署示例
+
+### 12.1 Docker Compose 集群配置
+
+```yaml
+# docker-compose.cluster.yml
+
+version: '3.8'
+
+services:
+  mcphub-master:
+    image: samanhappy/mcphub:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - CLUSTER_ENABLED=true
+      - CLUSTER_ROLE=master
+      - CLUSTER_NODE_ID=master-001
+      - CLUSTER_MASTER_HOST=0.0.0.0
+      - CLUSTER_MASTER_PORT=3000
+      - CLUSTER_TOKEN=your-secure-cluster-token
+      - CLUSTER_HEARTBEAT_INTERVAL=5000
+      - CLUSTER_HEARTBEAT_TIMEOUT=15000
+    volumes:
+      - ./mcp_settings.json:/app/mcp_settings.json
+    networks:
+      - mcphub-cluster
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mcphub-worker-1:
+    image: samanhappy/mcphub:latest
+    environment:
+      - CLUSTER_ENABLED=true
+      - CLUSTER_ROLE=worker
+      - CLUSTER_NODE_ID=worker-001
+      - CLUSTER_MASTER_URL=http://mcphub-master:3000
+      - CLUSTER_TOKEN=your-secure-cluster-token
+      - CLUSTER_ADVERTISE_HOST=mcphub-worker-1
+      - CLUSTER_ADVERTISE_PORT=3000
+    depends_on:
+      mcphub-master:
+        condition: service_healthy
+    networks:
+      - mcphub-cluster
+
+  mcphub-worker-2:
+    image: samanhappy/mcphub:latest
+    environment:
+      - CLUSTER_ENABLED=true
+      - CLUSTER_ROLE=worker
+      - CLUSTER_NODE_ID=worker-002
+      - CLUSTER_MASTER_URL=http://mcphub-master:3000
+      - CLUSTER_TOKEN=your-secure-cluster-token
+      - CLUSTER_ADVERTISE_HOST=mcphub-worker-2
+      - CLUSTER_ADVERTISE_PORT=3000
+    depends_on:
+      mcphub-master:
+        condition: service_healthy
+    networks:
+      - mcphub-cluster
+
+networks:
+  mcphub-cluster:
+    driver: bridge
+```
+
+### 12.2 Kubernetes 部署 (可选)
+
+```yaml
+# kubernetes/mcphub-cluster.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcphub-master
+spec:
+  replicas: 1  # Master 通常只需要 1 个
+  selector:
+    matchLabels:
+      app: mcphub
+      role: master
+  template:
+    metadata:
+      labels:
+        app: mcphub
+        role: master
+    spec:
+      containers:
+      - name: mcphub
+        image: samanhappy/mcphub:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: CLUSTER_ENABLED
+          value: "true"
+        - name: CLUSTER_ROLE
+          value: "master"
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-cluster-secret
+              key: token
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcphub-worker
+spec:
+  replicas: 3  # Worker 可以水平扩展
+  selector:
+    matchLabels:
+      app: mcphub
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: mcphub
+        role: worker
+    spec:
+      containers:
+      - name: mcphub
+        image: samanhappy/mcphub:latest
+        env:
+        - name: CLUSTER_ENABLED
+          value: "true"
+        - name: CLUSTER_ROLE
+          value: "worker"
+        - name: CLUSTER_MASTER_URL
+          value: "http://mcphub-master:3000"
+        - name: CLUSTER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-cluster-secret
+              key: token
+```
+
+## 13. 实现计划与优先级
+
+### Phase 1: 基础架构 (优先级: 高)
+
+| 任务 | 描述 | 工作量估算 |
+|------|------|-----------|
+| 类型定义 | 新增集群相关 TypeScript 类型 | 1 天 |
+| 配置加载 | 支持集群配置环境变量/配置文件 | 1 天 |
+| ClusterCoordinatorService | Master 端核心服务框架 | 3 天 |
+| ClusterWorkerService | Worker 端核心服务框架 | 2 天 |
+| 节点注册与心跳 | 实现 Worker 注册和心跳机制 | 2 天 |
+
+### Phase 2: 请求路由 (优先级: 高)
+
+| 任务 | 描述 | 工作量估算 |
+|------|------|-----------|
+| 会话路由表 | 实现 Session 到 Node 的映射管理 | 1 天 |
+| SSE 代理 | 实现 SSE 连接的透明代理 | 3 天 |
+| MCP 请求代理 | 实现 MCP POST 请求代理 | 2 天 |
+| 负载均衡 | 实现 Round-Robin 和 Least-Connections | 2 天 |
+
+### Phase 3: 副本管理 (优先级: 中)
+
+| 任务 | 描述 | 工作量估算 |
+|------|------|-----------|
+| 副本调度器 | 实现副本分配算法 | 2 天 |
+| 副本 CRUD API | 实现副本管理 REST API | 1 天 |
+| 自动扩缩容 | 支持动态调整副本数 | 2 天 |
+
+### Phase 4: 高可用与监控 (优先级: 中)
+
+| 任务 | 描述 | 工作量估算 |
+|------|------|-----------|
+| 健康检查 | 实现节点健康检查机制 | 1 天 |
+| 故障检测与恢复 | 实现节点故障时的副本迁移 | 3 天 |
+| 监控指标 | 收集并暴露集群指标 | 2 天 |
+
+### Phase 5: 前端 UI (优先级: 低)
+
+| 任务 | 描述 | 工作量估算 |
+|------|------|-----------|
+| 集群仪表板 | 新增集群状态展示页面 | 3 天 |
+| 节点管理 | 节点列表和详情页面 | 2 天 |
+| 副本管理 | Server 副本配置 UI | 2 天 |
+
+### 总工作量估算
+
+- **Phase 1-2 (核心功能)**: 约 17 天
+- **Phase 3-4 (增强功能)**: 约 9 天
+- **Phase 5 (UI)**: 约 7 天
+- **总计**: 约 33 个工作日
+
+## 14. 风险与缓解措施
+
+| 风险 | 影响 | 缓解措施 |
+|------|------|----------|
+| SSE 长连接代理复杂性 | 可能导致连接不稳定 | 使用成熟的代理库，添加重连机制 |
+| 网络分区 | 脑裂问题 | 实现简单的 quorum 机制，或依赖外部协调服务 |
+| 会话状态丢失 | 故障转移时连接中断 | 复用现有的 Session Rebuild 机制 |
+| 性能开销 | 代理层增加延迟 | 优化代理路径，支持连接复用 |
+| 配置同步延迟 | Worker 配置不一致 | 使用版本号，支持配置强制刷新 |
+
+## 15. 未来扩展
+
+1. **多 Master 高可用**: 支持 Master 节点热备
+2. **地理分布式部署**: 支持跨数据中心部署
+3. **自动伸缩**: 根据负载自动增减 Worker 节点
+4. **服务网格集成**: 与 Istio/Linkerd 等服务网格集成
+5. **Prometheus/Grafana 监控**: 提供标准监控指标和仪表板
+
+---
+
+**文档版本**: 1.0.0  
+**最后更新**: 2024-12-05  
+**作者**: MCPHub Team
