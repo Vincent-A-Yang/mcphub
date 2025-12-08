@@ -14,6 +14,13 @@ interface McpServerConfig {
   type?: string;
   url?: string;
   headers?: Record<string, string>;
+  openapi?: {
+    url?: string;
+    schema?: Record<string, any>;
+    version?: string;
+    security?: any;
+    passthroughHeaders?: string[];
+  };
 }
 
 interface ImportJsonFormat {
@@ -61,6 +68,34 @@ HTTP example:
       }
     }
   }
+}
+
+OpenAPI example (correct format):
+{
+  "mcpServers": {
+    "openapi-server-example": {
+      "type": "openapi",
+      "openapi": {
+        "url": "http://localhost:3002/openapi.json"
+      },
+      "headers": {
+        "X-API-Key": "your-api-key"
+      }
+    }
+  }
+}
+
+OpenAPI example (legacy format, also supported):
+{
+  "mcpServers": {
+    "openapi-server-legacy": {
+      "type": "openapi",
+      "url": "http://localhost:3002/openapi.json",
+      "headers": {
+        "X-API-Key": "your-api-key"
+      }
+    }
+  }
 }`;
 
   const parseAndValidateJson = (input: string): ImportJsonFormat | null => {
@@ -89,15 +124,34 @@ HTTP example:
       // Normalize config to MCPHub format
       const normalizedConfig: any = {};
 
+      // Handle different server types
       if (config.type === 'sse' || config.type === 'streamable-http') {
+        // SSE and streamable-http servers use top-level url
         normalizedConfig.type = config.type;
         normalizedConfig.url = config.url;
         if (config.headers) {
           normalizedConfig.headers = config.headers;
         }
+      } else if (config.type === 'openapi') {
+        // OpenAPI servers have special handling
+        normalizedConfig.type = 'openapi';
+        
+        // Check if openapi configuration is already in correct format
+        if (config.openapi) {
+          normalizedConfig.openapi = config.openapi;
+        } else if (config.url) {
+          // Legacy format: convert top-level url to openapi.url
+          normalizedConfig.openapi = {
+            url: config.url,
+          };
+        }
+        
+        if (config.headers) {
+          normalizedConfig.headers = config.headers;
+        }
       } else {
-        // Default to stdio
-        normalizedConfig.type = 'stdio';
+        // Command-based servers (stdio or unspecified type)
+        normalizedConfig.type = config.type || 'stdio';
         normalizedConfig.command = config.command;
         normalizedConfig.args = config.args || [];
         if (config.env) {
@@ -236,6 +290,16 @@ HTTP example:
                           {server.config.url && (
                             <div>
                               <strong>{t('server.url')}:</strong> {server.config.url}
+                            </div>
+                          )}
+                          {server.config.openapi?.url && (
+                            <div>
+                              <strong>OpenAPI URL:</strong> {server.config.openapi.url}
+                            </div>
+                          )}
+                          {server.config.openapi?.schema && (
+                            <div>
+                              <strong>OpenAPI Schema:</strong> (Inline schema provided)
                             </div>
                           )}
                           {server.config.env && Object.keys(server.config.env).length > 0 && (

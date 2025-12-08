@@ -46,6 +46,17 @@
       "env": {
         "TEST_VAR": "test-value"
       }
+    },
+    "test-openapi-server-correct": {
+      "enabled": true,
+      "owner": "admin",
+      "type": "openapi",
+      "openapi": {
+        "url": "http://localhost:3002/openapi.json"
+      },
+      "headers": {
+        "X-API-Key": "test-key"
+      }
     }
   },
   "users": [
