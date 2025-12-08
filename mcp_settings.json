@@ -33,30 +33,6 @@
         "SLACK_BOT_TOKEN": "your-bot-token",
         "SLACK_TEAM_ID": "your-team-id"
       }
-    },
-    "test-import-server": {
-      "enabled": true,
-      "owner": "admin",
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "test-package"
-      ],
-      "env": {
-        "TEST_VAR": "test-value"
-      }
-    },
-    "test-openapi-server-correct": {
-      "enabled": true,
-      "owner": "admin",
-      "type": "openapi",
-      "openapi": {
-        "url": "http://localhost:3002/openapi.json"
-      },
-      "headers": {
-        "X-API-Key": "test-key"
-      }
     }
   },
   "users": [
@@ -86,9 +62,6 @@
         ],
         "requiresAuthentication": false
       }
-    },
-    "routing": {
-      "skipAuth": true
     }
   }
 }
