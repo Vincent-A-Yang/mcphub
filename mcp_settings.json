@@ -33,6 +33,19 @@
         "SLACK_BOT_TOKEN": "your-bot-token",
         "SLACK_TEAM_ID": "your-team-id"
       }
+    },
+    "test-import-server": {
+      "enabled": true,
+      "owner": "admin",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "test-package"
+      ],
+      "env": {
+        "TEST_VAR": "test-value"
+      }
     }
   },
   "users": [
@@ -62,6 +75,9 @@
         ],
         "requiresAuthentication": false
       }
+    },
+    "routing": {
+      "skipAuth": true
     }
   }
 }
