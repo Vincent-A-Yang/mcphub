@@ -295,7 +295,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   /**
    * Get stored OAuth tokens
    */
-  tokens(): OAuthTokens | undefined | Promise<OAuthTokens | undefined> {
+  async tokens(): Promise<OAuthTokens | undefined> {
     return this.getValidTokens();
   }
 
@@ -403,8 +403,9 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
         this.serverConfig = updatedConfig;
       }
 
-      const nextRefreshToken = tokens.refreshToken ?? refreshToken;
-      if (tokens.refreshToken === undefined) {
+      const refreshTokenFromResponse = tokens.refreshToken;
+      const nextRefreshToken = refreshTokenFromResponse ?? refreshToken;
+      if (refreshTokenFromResponse === undefined) {
         console.warn(
           `Refresh response missing refresh_token for ${this.serverName}; reusing existing refresh token (some providers omit refresh_token on refresh)`,
         );
