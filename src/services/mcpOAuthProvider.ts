@@ -354,7 +354,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     // Refresh if token is expired or about to expire
     const expiresAt = this.getAccessTokenExpiryMs(oauth);
     const now = Date.now();
-    if ((expiresAt && expiresAt - now <= 60_000) || !oauth.accessToken) {
+    if (expiresAt && expiresAt - now <= 60_000) {
       const refreshed = await this.refreshAccessTokenIfNeeded(oauth.refreshToken);
       if (refreshed) {
         return refreshed;
@@ -405,9 +405,16 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
         this.serverConfig = updatedConfig;
       }
 
+      const nextRefreshToken = tokens.refreshToken ?? refreshToken;
+      if (tokens.refreshToken === undefined) {
+        console.warn(
+          `Refresh response missing refresh_token for ${this.serverName}, reusing existing token`,
+        );
+      }
+
       return {
         access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken ?? refreshToken,
+        refresh_token: nextRefreshToken,
         token_type: 'Bearer',
         expires_in: tokens.expiresIn,
       };
