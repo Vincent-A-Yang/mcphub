@@ -26,8 +26,16 @@ import * as oauthRegistration from '../../src/services/oauthClientRegistration.j
 import * as oauthSettingsStore from '../../src/services/oauthSettingsStore.js';
 
 describe('MCPHubOAuthProvider token refresh', () => {
+  const NOW = 1_700_000_000_000;
+  let nowSpy: jest.SpyInstance<number, []>;
+
   beforeEach(() => {
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    nowSpy.mockRestore();
   });
 
   const baseConfig = {
@@ -44,7 +52,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
       ...baseConfig,
       oauth: {
         ...baseConfig.oauth,
-        accessTokenExpiresAt: Date.now() - 1_000,
+        accessTokenExpiresAt: NOW - 1_000,
       },
     };
 
@@ -54,7 +62,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
         ...expiredConfig.oauth,
         accessToken: 'new-access',
         refreshToken: 'new-refresh',
-        accessTokenExpiresAt: Date.now() + 3_600_000,
+        accessTokenExpiresAt: NOW + 3_600_000,
       },
     };
 
@@ -83,7 +91,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
       ...baseConfig,
       oauth: {
         ...baseConfig.oauth,
-        accessTokenExpiresAt: Date.now() + 10 * 60 * 1_000,
+        accessTokenExpiresAt: NOW + 10 * 60 * 1_000,
       },
     };
 

@@ -41,6 +41,8 @@ import {
 // Import getServerByName to access ServerInfo
 import { getServerByName } from './mcpService.js';
 
+const ACCESS_TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+
 /**
  * MCPHub OAuth Provider for server-side OAuth flows
  *
@@ -354,7 +356,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     // Refresh if token is expired or about to expire
     const expiresAt = this.getAccessTokenExpiryMs(oauth);
     const now = Date.now();
-    if (expiresAt && expiresAt - now <= 60_000) {
+    if (expiresAt && expiresAt - now <= ACCESS_TOKEN_REFRESH_THRESHOLD_MS) {
       const refreshed = await this.refreshAccessTokenIfNeeded(oauth.refreshToken);
       if (refreshed) {
         return refreshed;
@@ -408,7 +410,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
       const nextRefreshToken = tokens.refreshToken ?? refreshToken;
       if (tokens.refreshToken === undefined) {
         console.warn(
-          `Refresh response missing refresh_token for ${this.serverName}, reusing existing token`,
+          `Refresh response missing refresh_token for ${this.serverName}, reusing existing refresh token`,
         );
       }
 
