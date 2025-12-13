@@ -371,10 +371,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   }
 
   private getAccessTokenExpiryMs(oauth: NonNullable<ServerConfig['oauth']>): number | undefined {
-    const { accessTokenExpiresAt } = oauth;
-    if (!accessTokenExpiresAt) return undefined;
-    if (typeof accessTokenExpiresAt === 'number') return accessTokenExpiresAt;
-    return undefined;
+    return oauth.accessTokenExpiresAt;
   }
 
   private async refreshAccessTokenIfNeeded(
@@ -403,9 +400,9 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
         this.serverConfig = updatedConfig;
       }
 
-      const refreshTokenFromResponse = tokens.refreshToken;
-      const nextRefreshToken = refreshTokenFromResponse ?? refreshToken;
-      if (refreshTokenFromResponse === undefined) {
+      const newRefreshToken = tokens.refreshToken;
+      const nextRefreshToken = newRefreshToken ?? refreshToken;
+      if (newRefreshToken === undefined) {
         console.warn(
           `Refresh response missing refresh_token for ${this.serverName}; reusing existing refresh token (some providers omit refresh_token on refresh)`,
         );

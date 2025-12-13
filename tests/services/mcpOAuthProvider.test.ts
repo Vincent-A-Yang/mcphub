@@ -28,6 +28,7 @@ import type { ServerConfig } from '../../src/types/index.js';
 
 describe('MCPHubOAuthProvider token refresh', () => {
   const NOW = 1_700_000_000_000;
+  const TEN_MINUTES_MS = 10 * 60 * 1_000;
   let nowSpy: jest.SpyInstance<number, []>;
 
   beforeEach(() => {
@@ -92,7 +93,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
       ...baseConfig,
       oauth: {
         ...baseConfig.oauth,
-        accessTokenExpiresAt: NOW + 10 * 60 * 1_000,
+        accessTokenExpiresAt: NOW + TEN_MINUTES_MS,
       },
     };
 
