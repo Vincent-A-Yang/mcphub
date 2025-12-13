@@ -295,7 +295,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   /**
    * Get stored OAuth tokens
    */
-  async tokens(): Promise<OAuthTokens | undefined> {
+  tokens(): OAuthTokens | undefined | Promise<OAuthTokens | undefined> {
     return this.getValidTokens();
   }
 
@@ -374,10 +374,6 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     const { accessTokenExpiresAt } = oauth;
     if (!accessTokenExpiresAt) return undefined;
     if (typeof accessTokenExpiresAt === 'number') return accessTokenExpiresAt;
-    if (typeof accessTokenExpiresAt === 'string') {
-      const parsed = Date.parse(accessTokenExpiresAt);
-      return Number.isNaN(parsed) ? undefined : parsed;
-    }
     return undefined;
   }
 
@@ -410,7 +406,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
       const nextRefreshToken = tokens.refreshToken ?? refreshToken;
       if (tokens.refreshToken === undefined) {
         console.warn(
-          `Refresh response missing refresh_token for ${this.serverName}, reusing existing refresh token`,
+          `Refresh response missing refresh_token for ${this.serverName}; reusing existing refresh token (some providers omit refresh_token on refresh)`,
         );
       }
 

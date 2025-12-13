@@ -24,6 +24,7 @@ jest.mock('../../src/dao/index.js', () => ({
 import { MCPHubOAuthProvider } from '../../src/services/mcpOAuthProvider.js';
 import * as oauthRegistration from '../../src/services/oauthClientRegistration.js';
 import * as oauthSettingsStore from '../../src/services/oauthSettingsStore.js';
+import type { ServerConfig } from '../../src/types/index.js';
 
 describe('MCPHubOAuthProvider token refresh', () => {
   const NOW = 1_700_000_000_000;
@@ -38,7 +39,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
     nowSpy.mockRestore();
   });
 
-  const baseConfig = {
+  const baseConfig: ServerConfig = {
     url: 'https://example.com/v1/sse',
     oauth: {
       clientId: 'client-id',
@@ -48,7 +49,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
   };
 
   it('refreshes access token when expired', async () => {
-    const expiredConfig = {
+    const expiredConfig: ServerConfig = {
       ...baseConfig,
       oauth: {
         ...baseConfig.oauth,
@@ -56,7 +57,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
       },
     };
 
-    const refreshedConfig = {
+    const refreshedConfig: ServerConfig = {
       ...expiredConfig,
       oauth: {
         ...expiredConfig.oauth,
@@ -76,7 +77,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
     });
     (oauthSettingsStore.loadServerConfig as jest.Mock).mockResolvedValue(refreshedConfig);
 
-    const provider = new MCPHubOAuthProvider('atlassian-work', expiredConfig as any);
+    const provider = new MCPHubOAuthProvider('atlassian-work', expiredConfig);
 
     const tokens = await provider.tokens();
 
@@ -87,7 +88,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
   });
 
   it('returns cached token when not expired', async () => {
-    const freshConfig = {
+    const freshConfig: ServerConfig = {
       ...baseConfig,
       oauth: {
         ...baseConfig.oauth,
@@ -95,7 +96,7 @@ describe('MCPHubOAuthProvider token refresh', () => {
       },
     };
 
-    const provider = new MCPHubOAuthProvider('atlassian-work', freshConfig as any);
+    const provider = new MCPHubOAuthProvider('atlassian-work', freshConfig);
     const tokens = await provider.tokens();
 
     expect(tokens?.access_token).toBe('old-access');
