@@ -293,6 +293,7 @@ export interface ServerConfig {
     scopes?: string[]; // Required OAuth scopes
     accessToken?: string; // Pre-obtained access token (if available)
     refreshToken?: string; // Refresh token for renewing access
+    accessTokenExpiresAt?: number; // Access token expiration timestamp (ms since epoch)
 
     // Dynamic client registration (RFC7591)
     // If not explicitly configured, will auto-detect via WWW-Authenticate header on 401 responses

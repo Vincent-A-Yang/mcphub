@@ -26,6 +26,7 @@ import {
   getRegisteredClient,
   removeRegisteredClient,
   fetchScopesFromServer,
+  refreshAccessToken,
 } from './oauthClientRegistration.js';
 import {
   clearOAuthData,
@@ -292,21 +293,8 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
   /**
    * Get stored OAuth tokens
    */
-  tokens(): OAuthTokens | undefined {
-    // Use cached config only (tokens are updated via saveTokens which updates cache)
-    const serverConfig = this.serverConfig;
-
-    if (!serverConfig?.oauth?.accessToken) {
-      return undefined;
-    }
-
-    return {
-      access_token: serverConfig.oauth.accessToken,
-      token_type: 'Bearer',
-      refresh_token: serverConfig.oauth.refreshToken,
-      // Note: expires_in is not typically stored, only the token itself
-      // The SDK will handle token refresh when needed
-    };
+  async tokens(): Promise<OAuthTokens | undefined> {
+    return this.getValidTokens();
   }
 
   /**
@@ -330,6 +318,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     const updatedConfig = await persistTokens(this.serverName, {
       accessToken: tokens.access_token,
       refreshToken: refreshTokenProvided ? (tokens.refresh_token ?? null) : undefined,
+      expiresIn: tokens.expires_in,
       clearPendingAuthorization: hadPending,
     });
 
@@ -346,6 +335,92 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
     }
 
     console.log(`Saved OAuth tokens for server: ${this.serverName}`);
+  }
+
+  /**
+   * Returns tokens refreshed when expired or close to expiring.
+   * Falls back to stored tokens if refresh cannot be performed.
+   */
+  private async getValidTokens(): Promise<OAuthTokens | undefined> {
+    const oauth = this.serverConfig.oauth;
+    if (!oauth) {
+      return undefined;
+    }
+
+    if (!oauth.accessToken) {
+      return this.refreshAccessTokenIfNeeded(oauth.refreshToken);
+    }
+
+    // Refresh if token is expired or about to expire
+    const expiresAt = this.getAccessTokenExpiryMs(oauth);
+    const now = Date.now();
+    if ((expiresAt && expiresAt - now <= 60_000) || !oauth.accessToken) {
+      const refreshed = await this.refreshAccessTokenIfNeeded(oauth.refreshToken);
+      if (refreshed) {
+        return refreshed;
+      }
+    }
+
+    return {
+      access_token: oauth.accessToken,
+      token_type: 'Bearer',
+      refresh_token: oauth.refreshToken,
+    };
+  }
+
+  private getAccessTokenExpiryMs(oauth: NonNullable<ServerConfig['oauth']>): number | undefined {
+    const { accessTokenExpiresAt } = oauth;
+    if (!accessTokenExpiresAt) return undefined;
+    if (typeof accessTokenExpiresAt === 'number') return accessTokenExpiresAt;
+    if (typeof accessTokenExpiresAt === 'string') {
+      const parsed = Date.parse(accessTokenExpiresAt);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    if (accessTokenExpiresAt instanceof Date) {
+      return accessTokenExpiresAt.getTime();
+    }
+    return undefined;
+  }
+
+  private async refreshAccessTokenIfNeeded(
+    refreshToken?: string | null,
+  ): Promise<OAuthTokens | undefined> {
+    if (!refreshToken) {
+      return undefined;
+    }
+
+    try {
+      const clientInfo = await initializeOAuthForServer(this.serverName, this.serverConfig);
+      if (!clientInfo) {
+        return undefined;
+      }
+
+      const tokens = await refreshAccessToken(
+        this.serverName,
+        this.serverConfig,
+        clientInfo,
+        refreshToken,
+      );
+
+      // Reload latest config to sync updated tokens/expiry
+      const updatedConfig = await loadServerConfig(this.serverName);
+      if (updatedConfig) {
+        this.serverConfig = updatedConfig;
+      }
+
+      return {
+        access_token: tokens.accessToken,
+        refresh_token: tokens.refreshToken ?? refreshToken,
+        token_type: 'Bearer',
+        expires_in: tokens.expiresIn,
+      };
+    } catch (error) {
+      console.warn(
+        `Failed to auto-refresh OAuth token for server ${this.serverName}:`,
+        error instanceof Error ? error.message : error,
+      );
+      return undefined;
+    }
   }
 
   /**

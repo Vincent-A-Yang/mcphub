@@ -397,6 +397,7 @@ export const exchangeCodeForToken = async (
     await persistTokens(serverName, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? undefined,
+      expiresIn: tokens.expires_in,
     });
 
     return {
@@ -437,6 +438,7 @@ export const refreshAccessToken = async (
     await persistTokens(serverName, {
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? undefined,
+      expiresIn: tokens.expires_in,
     });
 
     return {
