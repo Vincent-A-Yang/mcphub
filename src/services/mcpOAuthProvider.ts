@@ -376,9 +376,6 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
       const parsed = Date.parse(accessTokenExpiresAt);
       return Number.isNaN(parsed) ? undefined : parsed;
     }
-    if (accessTokenExpiresAt instanceof Date) {
-      return accessTokenExpiresAt.getTime();
-    }
     return undefined;
   }
 
