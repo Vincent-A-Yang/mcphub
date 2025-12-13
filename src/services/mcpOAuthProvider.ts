@@ -41,6 +41,7 @@ import {
 // Import getServerByName to access ServerInfo
 import { getServerByName } from './mcpService.js';
 
+// Refresh tokens one minute before expiry to avoid sending requests with stale credentials.
 const ACCESS_TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
 /**
@@ -341,7 +342,7 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
 
   /**
    * Returns tokens refreshed when expired or close to expiring.
-   * Falls back to stored tokens if refresh cannot be performed.
+   * When an access token already exists and refresh fails, the existing token is returned.
    */
   private async getValidTokens(): Promise<OAuthTokens | undefined> {
     const oauth = this.serverConfig.oauth;
@@ -400,9 +401,8 @@ export class MCPHubOAuthProvider implements OAuthClientProvider {
         this.serverConfig = updatedConfig;
       }
 
-      const newRefreshToken = tokens.refreshToken;
-      const nextRefreshToken = newRefreshToken ?? refreshToken;
-      if (newRefreshToken === undefined) {
+      const nextRefreshToken = tokens.refreshToken ?? refreshToken;
+      if (tokens.refreshToken === undefined) {
         console.warn(
           `Refresh response missing refresh_token for ${this.serverName}; reusing existing refresh token (some providers omit refresh_token on refresh)`,
         );
