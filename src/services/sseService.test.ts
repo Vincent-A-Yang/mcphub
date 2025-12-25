@@ -633,4 +633,142 @@ describe('sseService', () => {
       expectBearerUnauthorized(res, 'No authorization provided');
     });
   });
+
+  describe('stream parameter support', () => {
+    beforeEach(() => {
+      // Clear transports before each test
+      Object.keys(transports).forEach((key) => delete transports[key]);
+    });
+
+    it('should create transport with enableJsonResponse=true when stream=false in body', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        body: { 
+          method: 'initialize',
+          stream: false,
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: true
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should create transport with enableJsonResponse=false when stream=true in body', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        body: { 
+          method: 'initialize',
+          stream: true,
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: false
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: false,
+        }),
+      );
+    });
+
+    it('should create transport with enableJsonResponse=true when stream=false in query', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'false' },
+        body: { 
+          method: 'initialize',
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: true
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should default to enableJsonResponse=false when stream parameter not provided', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        body: { 
+          method: 'initialize',
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: false (default)
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: false,
+        }),
+      );
+    });
+
+    it('should prioritize body stream parameter over query parameter', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'true' },
+        body: { 
+          method: 'initialize',
+          stream: false, // body should take priority
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: true (from body)
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should pass enableJsonResponse to createSessionWithId when rebuilding session', async () => {
+      setMockSystemConfig({
+        routing: {
+          enableGlobalRoute: true,
+          enableGroupNameRoute: true,
+          enableBearerAuth: false,
+          bearerAuthKey: 'test-key',
+        },
+        enableSessionRebuild: true,
+      });
+
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        headers: { 'mcp-session-id': 'invalid-session' },
+        body: { 
+          method: 'someMethod',
+          stream: false,
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Check that StreamableHTTPServerTransport was called with enableJsonResponse: true
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+  });
 });

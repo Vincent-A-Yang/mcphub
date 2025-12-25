@@ -408,9 +408,10 @@ async function createSessionWithId(
   sessionId: string,
   group: string,
   username?: string,
+  enableJsonResponse?: boolean,
 ): Promise<StreamableHTTPServerTransport> {
   console.log(
-    `[SESSION REBUILD] Starting session rebuild for ID: ${sessionId}${username ? ` for user: ${username}` : ''}`,
+    `[SESSION REBUILD] Starting session rebuild for ID: ${sessionId}${username ? ` for user: ${username}` : ''} with enableJsonResponse: ${enableJsonResponse}`,
   );
 
   // Create a new server instance to ensure clean state
@@ -418,6 +419,7 @@ async function createSessionWithId(
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => sessionId, // Use the specified sessionId
+    enableJsonResponse: enableJsonResponse ?? false,
     onsessioninitialized: (initializedSessionId) => {
       console.log(
         `[SESSION REBUILD] onsessioninitialized triggered for ID: ${initializedSessionId}`,
@@ -469,14 +471,16 @@ async function createSessionWithId(
 async function createNewSession(
   group: string,
   username?: string,
+  enableJsonResponse?: boolean,
 ): Promise<StreamableHTTPServerTransport> {
   const newSessionId = randomUUID();
   console.log(
-    `[SESSION NEW] Creating new session with ID: ${newSessionId}${username ? ` for user: ${username}` : ''}`,
+    `[SESSION NEW] Creating new session with ID: ${newSessionId}${username ? ` for user: ${username}` : ''} with enableJsonResponse: ${enableJsonResponse}`,
   );
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => newSessionId,
+    enableJsonResponse: enableJsonResponse ?? false,
     onsessioninitialized: (sessionId) => {
       transports[sessionId] = { transport, group };
       console.log(
@@ -515,8 +519,25 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   const group = req.params.group;
   const body = req.body;
+  
+  // Parse stream parameter from query string or request body
+  // Default to true (SSE streaming) for backward compatibility
+  let enableStreaming = true;
+  
+  // Check query parameter first
+  if (req.query.stream !== undefined) {
+    enableStreaming = req.query.stream === 'true' || req.query.stream === '1';
+  }
+  // Then check request body (has higher priority)
+  if (body && typeof body === 'object' && 'stream' in body) {
+    enableStreaming = body.stream === true;
+  }
+  
+  // enableJsonResponse is the inverse of enableStreaming
+  const enableJsonResponse = !enableStreaming;
+  
   console.log(
-    `Handling MCP post request for sessionId: ${sessionId} and group: ${group}${username ? ` for user: ${username}` : ''} with body: ${JSON.stringify(body)}`,
+    `Handling MCP post request for sessionId: ${sessionId} and group: ${group}${username ? ` for user: ${username}` : ''} with enableStreaming: ${enableStreaming}`,
   );
 
   // Get filtered settings based on user context (after setting user context)
@@ -559,7 +580,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
         );
         transport = await sessionCreationLocks[sessionId];
       } else {
-        sessionCreationLocks[sessionId] = createSessionWithId(sessionId, group, username);
+        sessionCreationLocks[sessionId] = createSessionWithId(sessionId, group, username, enableJsonResponse);
         try {
           transport = await sessionCreationLocks[sessionId];
           console.log(
@@ -596,7 +617,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     console.log(
       `[SESSION CREATE] No session ID provided for initialize request, creating new session${username ? ` for user: ${username}` : ''}`,
     );
-    transport = await createNewSession(group, username);
+    transport = await createNewSession(group, username, enableJsonResponse);
   } else {
     // Case 4: No sessionId and not an initialize request, return error
     console.warn(
