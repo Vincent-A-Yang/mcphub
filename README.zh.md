@@ -78,6 +78,7 @@ http://localhost:3000/mcp/$smart    # 智能路由
 | [快速开始](https://docs.mcphubx.com/zh/quickstart)                             | 5 分钟快速上手               |
 | [配置指南](https://docs.mcphubx.com/zh/configuration/mcp-settings)             | MCP 服务器配置选项           |
 | [数据库模式](https://docs.mcphubx.com/zh/configuration/database-configuration) | PostgreSQL 生产环境配置      |
+| [Stream 参数](docs/stream-parameter.md)                                        | 控制流式或 JSON 响应         |
 | [OAuth](https://docs.mcphubx.com/zh/features/oauth)                            | OAuth 2.0 客户端和服务端配置 |
 | [智能路由](https://docs.mcphubx.com/zh/features/smart-routing)                 | AI 驱动的工具发现            |
 | [Docker 部署](https://docs.mcphubx.com/zh/configuration/docker-setup)          | Docker 部署指南              |

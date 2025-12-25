@@ -78,6 +78,7 @@ http://localhost:3000/mcp/$smart    # Smart routing
 | [Quick Start](https://docs.mcphubx.com/quickstart)                             | Get started in 5 minutes          |
 | [Configuration](https://docs.mcphubx.com/configuration/mcp-settings)           | MCP server configuration options  |
 | [Database Mode](https://docs.mcphubx.com/configuration/database-configuration) | PostgreSQL setup for production   |
+| [Stream Parameter](docs/stream-parameter.md)                                   | Control streaming vs JSON responses |
 | [OAuth](https://docs.mcphubx.com/features/oauth)                               | OAuth 2.0 client and server setup |
 | [Smart Routing](https://docs.mcphubx.com/features/smart-routing)               | AI-powered tool discovery         |
 | [Docker Setup](https://docs.mcphubx.com/configuration/docker-setup)            | Docker deployment guide           |
