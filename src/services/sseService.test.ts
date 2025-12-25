@@ -770,5 +770,137 @@ describe('sseService', () => {
         }),
       );
     });
+
+    it('should handle string "false" in query parameter', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'false' },
+        body: { 
+          method: 'initialize',
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should handle string "0" in query parameter', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: '0' },
+        body: { 
+          method: 'initialize',
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should handle number 0 in body parameter', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        body: { 
+          method: 'initialize',
+          stream: 0,
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should handle number 1 in body parameter', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        body: { 
+          method: 'initialize',
+          stream: 1,
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: false,
+        }),
+      );
+    });
+
+    it('should handle "yes" and "no" string values', async () => {
+      // Test "yes"
+      const reqYes = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'yes' },
+        body: { method: 'initialize' },
+      });
+      const resYes = createMockResponse();
+
+      await handleMcpPostRequest(reqYes, resYes);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: false,
+        }),
+      );
+
+      jest.clearAllMocks();
+
+      // Test "no"
+      const reqNo = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'no' },
+        body: { method: 'initialize' },
+      });
+      const resNo = createMockResponse();
+
+      await handleMcpPostRequest(reqNo, resNo);
+
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: true,
+        }),
+      );
+    });
+
+    it('should default to streaming for invalid/unknown values', async () => {
+      const req = createMockRequest({
+        params: { group: 'test-group' },
+        query: { stream: 'invalid-value' },
+        body: { 
+          method: 'initialize',
+        },
+      });
+      const res = createMockResponse();
+
+      await handleMcpPostRequest(req, res);
+
+      // Should default to streaming (enableJsonResponse: false)
+      expect(StreamableHTTPServerTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enableJsonResponse: false,
+        }),
+      );
+    });
   });
 });

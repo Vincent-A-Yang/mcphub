@@ -524,13 +524,36 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   // Default to true (SSE streaming) for backward compatibility
   let enableStreaming = true;
   
+  // Helper function to parse stream parameter value
+  const parseStreamParam = (value: any): boolean => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      // Accept 'true', '1', 'yes', 'on' as truthy
+      if (['true', '1', 'yes', 'on'].includes(lowerValue)) {
+        return true;
+      }
+      // Accept 'false', '0', 'no', 'off' as falsy
+      if (['false', '0', 'no', 'off'].includes(lowerValue)) {
+        return false;
+      }
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    // Default to true for any other value (including undefined)
+    return true;
+  };
+  
   // Check query parameter first
   if (req.query.stream !== undefined) {
-    enableStreaming = req.query.stream === 'true' || req.query.stream === '1';
+    enableStreaming = parseStreamParam(req.query.stream);
   }
   // Then check request body (has higher priority)
   if (body && typeof body === 'object' && 'stream' in body) {
-    enableStreaming = body.stream === true;
+    enableStreaming = parseStreamParam(body.stream);
   }
   
   // enableJsonResponse is the inverse of enableStreaming
