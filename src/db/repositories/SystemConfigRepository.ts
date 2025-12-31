@@ -32,6 +32,7 @@ export class SystemConfigRepository {
         oauth: {},
         oauthServer: {},
         enableSessionRebuild: false,
+        compression: {},
       });
       config = await this.repository.save(config);
     }

@@ -173,6 +173,12 @@ export interface SystemConfig {
   oauth?: OAuthProviderConfig; // OAuth provider configuration for upstream MCP servers
   oauthServer?: OAuthServerConfig; // OAuth authorization server configuration for MCPHub itself
   enableSessionRebuild?: boolean; // Controls whether server session rebuild is enabled
+  compression?: {
+    enabled?: boolean; // Enable/disable AI compression of MCP tool outputs
+    model?: string; // AI model to use for compression (default: 'gpt-4o-mini')
+    maxInputTokens?: number; // Maximum input tokens for compression (default: 100000)
+    targetReductionRatio?: number; // Target reduction ratio, 0.0-1.0 (default: 0.5)
+  };
 }
 
 export interface UserConfig {

@@ -27,6 +27,7 @@ import { getDataService } from './services.js';
 import { getServerDao, getSystemConfigDao, ServerConfigWithName } from '../dao/index.js';
 import { initializeAllOAuthClients } from './oauthService.js';
 import { createOAuthProvider } from './mcpOAuthProvider.js';
+import { compressToolResult } from './compressionService.js';
 
 const servers: { [sessionId: string]: Server } = {};
 
@@ -1260,7 +1261,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
         const result = await openApiClient.callTool(cleanToolName, finalArgs, passthroughHeaders);
 
         console.log(`OpenAPI tool invocation result: ${JSON.stringify(result)}`);
-        return {
+        const openApiResult = {
           content: [
             {
               type: 'text',
@@ -1268,6 +1269,10 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
             },
           ],
         };
+        return compressToolResult(openApiResult, {
+          toolName: cleanToolName,
+          serverName: targetServerInfo.name,
+        });
       }
 
       // Call the tool on the target server (MCP servers)
@@ -1297,7 +1302,10 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
       );
 
       console.log(`Tool invocation result: ${JSON.stringify(result)}`);
-      return result;
+      return compressToolResult(result, {
+        toolName,
+        serverName: targetServerInfo.name,
+      });
     }
 
     // Regular tool handling
@@ -1356,7 +1364,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
       );
 
       console.log(`OpenAPI tool invocation result: ${JSON.stringify(result)}`);
-      return {
+      const openApiResult = {
         content: [
           {
             type: 'text',
@@ -1364,6 +1372,10 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
           },
         ],
       };
+      return compressToolResult(openApiResult, {
+        toolName: cleanToolName,
+        serverName: serverInfo.name,
+      });
     }
 
     // Handle MCP servers
@@ -1374,6 +1386,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
 
     const separator = getNameSeparator();
     const prefix = `${serverInfo.name}${separator}`;
+    const originalToolName = request.params.name;
     request.params.name = request.params.name.startsWith(prefix)
       ? request.params.name.substring(prefix.length)
       : request.params.name;
@@ -1383,7 +1396,10 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
       serverInfo.options || {},
     );
     console.log(`Tool call result: ${JSON.stringify(result)}`);
-    return result;
+    return compressToolResult(result, {
+      toolName: originalToolName,
+      serverName: serverInfo.name,
+    });
   } catch (error) {
     console.error(`Error handling CallToolRequest: ${error}`);
     return {
