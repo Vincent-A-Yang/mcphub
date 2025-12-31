@@ -8,6 +8,7 @@ import {
   OAuthClientDao,
   OAuthTokenDao,
   BearerKeyDao,
+  ToolCallActivityDao,
 } from './index.js';
 import { UserDaoDbImpl } from './UserDaoDbImpl.js';
 import { ServerDaoDbImpl } from './ServerDaoDbImpl.js';
@@ -17,6 +18,7 @@ import { UserConfigDaoDbImpl } from './UserConfigDaoDbImpl.js';
 import { OAuthClientDaoDbImpl } from './OAuthClientDaoDbImpl.js';
 import { OAuthTokenDaoDbImpl } from './OAuthTokenDaoDbImpl.js';
 import { BearerKeyDaoDbImpl } from './BearerKeyDaoDbImpl.js';
+import { ToolCallActivityDaoDbImpl } from './ToolCallActivityDao.js';
 
 /**
  * Database-backed DAO factory implementation
@@ -32,6 +34,7 @@ export class DatabaseDaoFactory implements DaoFactory {
   private oauthClientDao: OAuthClientDao | null = null;
   private oauthTokenDao: OAuthTokenDao | null = null;
   private bearerKeyDao: BearerKeyDao | null = null;
+  private toolCallActivityDao: ToolCallActivityDao | null = null;
 
   /**
    * Get singleton instance
@@ -103,6 +106,13 @@ export class DatabaseDaoFactory implements DaoFactory {
     return this.bearerKeyDao!;
   }
 
+  getToolCallActivityDao(): ToolCallActivityDao | null {
+    if (!this.toolCallActivityDao) {
+      this.toolCallActivityDao = new ToolCallActivityDaoDbImpl();
+    }
+    return this.toolCallActivityDao;
+  }
+
   /**
    * Reset all cached DAO instances (useful for testing)
    */
@@ -115,5 +125,6 @@ export class DatabaseDaoFactory implements DaoFactory {
     this.oauthClientDao = null;
     this.oauthTokenDao = null;
     this.bearerKeyDao = null;
+    this.toolCallActivityDao = null;
   }
 }

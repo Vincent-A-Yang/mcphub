@@ -6,6 +6,7 @@ import { UserConfigDao, UserConfigDaoImpl } from './UserConfigDao.js';
 import { OAuthClientDao, OAuthClientDaoImpl } from './OAuthClientDao.js';
 import { OAuthTokenDao, OAuthTokenDaoImpl } from './OAuthTokenDao.js';
 import { BearerKeyDao, BearerKeyDaoImpl } from './BearerKeyDao.js';
+import { ToolCallActivityDao } from './ToolCallActivityDao.js';
 
 /**
  * DAO Factory interface for creating DAO instances
@@ -19,6 +20,7 @@ export interface DaoFactory {
   getOAuthClientDao(): OAuthClientDao;
   getOAuthTokenDao(): OAuthTokenDao;
   getBearerKeyDao(): BearerKeyDao;
+  getToolCallActivityDao(): ToolCallActivityDao | null; // Only available in DB mode
 }
 
 /**
@@ -104,6 +106,11 @@ export class JsonFileDaoFactory implements DaoFactory {
       this.bearerKeyDao = new BearerKeyDaoImpl();
     }
     return this.bearerKeyDao;
+  }
+
+  getToolCallActivityDao(): ToolCallActivityDao | null {
+    // Tool call activity is only available in DB mode
+    return null;
   }
 
   /**
@@ -193,4 +200,15 @@ export function getOAuthTokenDao(): OAuthTokenDao {
 
 export function getBearerKeyDao(): BearerKeyDao {
   return getDaoFactory().getBearerKeyDao();
+}
+
+export function getToolCallActivityDao(): ToolCallActivityDao | null {
+  return getDaoFactory().getToolCallActivityDao();
+}
+
+/**
+ * Check if the application is using database mode
+ */
+export function isUsingDatabase(): boolean {
+  return getDaoFactory().getToolCallActivityDao() !== null;
 }

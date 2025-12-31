@@ -481,3 +481,51 @@ export interface BatchCreateGroupsResponse {
   failureCount: number; // Number of groups that failed
   results: BatchGroupResult[]; // Detailed results for each group
 }
+
+// Tool call activity interface for logging tool invocations (DB mode only)
+export interface IToolCallActivity {
+  id?: string;
+  serverName: string;
+  toolName: string;
+  keyId?: string;
+  keyName?: string;
+  status: 'pending' | 'success' | 'error';
+  request?: string;
+  response?: string;
+  errorMessage?: string;
+  durationMs?: number;
+  clientIp?: string;
+  sessionId?: string;
+  groupName?: string;
+  createdAt?: Date;
+}
+
+// Tool call activity search parameters
+export interface IToolCallActivitySearchParams {
+  serverName?: string;
+  toolName?: string;
+  keyId?: string;
+  status?: 'pending' | 'success' | 'error';
+  groupName?: string;
+  startDate?: Date;
+  endDate?: Date;
+  searchQuery?: string;
+}
+
+// Tool call activity pagination result
+export interface IToolCallActivityPage {
+  items: IToolCallActivity[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// Tool call activity statistics
+export interface IToolCallActivityStats {
+  total: number;
+  success: number;
+  error: number;
+  pending: number;
+  avgDurationMs: number;
+}

@@ -7,6 +7,7 @@ import UserConfig from './UserConfig.js';
 import OAuthClient from './OAuthClient.js';
 import OAuthToken from './OAuthToken.js';
 import BearerKey from './BearerKey.js';
+import ToolCallActivity from './ToolCallActivity.js';
 
 // Export all entities
 export default [
@@ -19,6 +20,7 @@ export default [
   OAuthClient,
   OAuthToken,
   BearerKey,
+  ToolCallActivity,
 ];
 
 // Export individual entities for direct use
@@ -32,4 +34,5 @@ export {
   OAuthClient,
   OAuthToken,
   BearerKey,
+  ToolCallActivity,
 };
