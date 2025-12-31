@@ -3,12 +3,42 @@ import {
   LoginCredentials,
   RegisterCredentials,
   ChangePasswordCredentials,
+  SSOConfig,
 } from '../types';
 import { apiPost, apiGet } from '../utils/fetchInterceptor';
 import { getToken, setToken, removeToken } from '../utils/interceptors';
 
 // Export token management functions
 export { getToken, setToken, removeToken };
+
+// Get SSO configuration
+export const getSSOConfig = async (): Promise<SSOConfig> => {
+  try {
+    const response = await apiGet<{ success: boolean; data: SSOConfig }>('/auth/sso/config');
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return { enabled: false, providers: [], allowLocalAuth: true };
+  } catch (error) {
+    console.error('Get SSO config error:', error);
+    return { enabled: false, providers: [], allowLocalAuth: true };
+  }
+};
+
+// Initiate SSO login (redirects to provider)
+export const initiateSSOLogin = (providerId: string, returnUrl?: string): void => {
+  const basePath = import.meta.env.VITE_API_BASE_PATH || '';
+  let url = `${basePath}/api/auth/sso/${providerId}`;
+  if (returnUrl) {
+    url += `?returnUrl=${encodeURIComponent(returnUrl)}`;
+  }
+  window.location.href = url;
+};
+
+// Handle SSO callback token (called from SSO callback page)
+export const handleSSOToken = (token: string): void => {
+  setToken(token);
+};
 
 // Login user
 export const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {

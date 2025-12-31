@@ -46,6 +46,7 @@ export async function migrateToDatabase(): Promise<boolean> {
             username: user.username,
             password: user.password,
             isAdmin: user.isAdmin || false,
+            oauthLinks: user.oauthLinks ?? null,
           });
           console.log(`  - Created user: ${user.username}`);
         } else {

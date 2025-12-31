@@ -329,6 +329,19 @@ export interface IUser {
   permissions?: string[];
 }
 
+// OAuth SSO types
+export interface SSOProvider {
+  id: string;
+  name: string;
+  type: string;
+}
+
+export interface SSOConfig {
+  enabled: boolean;
+  providers: SSOProvider[];
+  allowLocalAuth: boolean;
+}
+
 // User management types
 export interface User {
   username: string;

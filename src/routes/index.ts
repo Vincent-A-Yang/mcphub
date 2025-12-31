@@ -66,6 +66,11 @@ import {
   getRegistryServerVersion,
 } from '../controllers/registryController.js';
 import { login, register, getCurrentUser, changePassword } from '../controllers/authController.js';
+import {
+  getSSOConfig,
+  initiateSSOLogin,
+  handleSSOCallback,
+} from '../controllers/oauthSSOController.js';
 import { getAllLogs, clearLogs, streamLogs } from '../controllers/logController.js';
 import {
   getRuntimeConfig,
@@ -273,7 +278,13 @@ export const initRoutes = (app: express.Application): void => {
     changePassword,
   );
 
+  // OAuth SSO routes (no auth required - public endpoints)
+  router.get('/auth/sso/config', getSSOConfig); // Get SSO configuration for frontend
+  router.get('/auth/sso/:provider', initiateSSOLogin); // Initiate SSO login
+  router.get('/auth/sso/:provider/callback', handleSSOCallback); // Handle OAuth callback
+
   // Runtime configuration endpoint (no auth required for frontend initialization)
+  app.get(`${config.basePath}/config`, getRuntimeConfig);
   app.get(`${config.basePath}/config`, getRuntimeConfig);
 
   // Public configuration endpoint (no auth required to check skipAuth setting)

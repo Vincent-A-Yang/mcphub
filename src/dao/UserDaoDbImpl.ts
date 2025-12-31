@@ -19,6 +19,7 @@ export class UserDaoDbImpl implements UserDao {
       username: u.username,
       password: u.password,
       isAdmin: u.isAdmin,
+      oauthLinks: u.oauthLinks ?? undefined,
     }));
   }
 
@@ -29,6 +30,7 @@ export class UserDaoDbImpl implements UserDao {
       username: user.username,
       password: user.password,
       isAdmin: user.isAdmin,
+      oauthLinks: user.oauthLinks ?? undefined,
     };
   }
 
@@ -41,11 +43,13 @@ export class UserDaoDbImpl implements UserDao {
       username: entity.username,
       password: entity.password,
       isAdmin: entity.isAdmin || false,
+      oauthLinks: entity.oauthLinks ?? null,
     });
     return {
       username: user.username,
       password: user.password,
       isAdmin: user.isAdmin,
+      oauthLinks: user.oauthLinks ?? undefined,
     };
   }
 
@@ -62,12 +66,14 @@ export class UserDaoDbImpl implements UserDao {
     const user = await this.repository.update(username, {
       password: entity.password,
       isAdmin: entity.isAdmin,
+      oauthLinks: entity.oauthLinks ?? undefined,
     });
     if (!user) return null;
     return {
       username: user.username,
       password: user.password,
       isAdmin: user.isAdmin,
+      oauthLinks: user.oauthLinks ?? undefined,
     };
   }
 
@@ -103,6 +109,7 @@ export class UserDaoDbImpl implements UserDao {
       username: u.username,
       password: u.password,
       isAdmin: u.isAdmin,
+      oauthLinks: u.oauthLinks ?? undefined,
     }));
   }
 }

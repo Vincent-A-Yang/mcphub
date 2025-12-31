@@ -8,6 +8,7 @@ import { SettingsProvider } from './contexts/SettingsContext';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
+import SSOCallbackPage from './pages/SSOCallbackPage';
 import DashboardPage from './pages/Dashboard';
 import ServersPage from './pages/ServersPage';
 import GroupsPage from './pages/GroupsPage';
@@ -35,6 +36,7 @@ function App() {
                 <Routes>
                   {/* 公共路由 */}
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/sso-callback" element={<SSOCallbackPage />} />
 
                   {/* 受保护的路由，使用 MainLayout 作为布局容器 */}
                   <Route element={<ProtectedRoute />}>

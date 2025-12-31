@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { IOAuthLink } from '../../types/index.js';
 
 /**
  * User entity for database storage
@@ -22,6 +23,9 @@ export class User {
 
   @Column({ type: 'boolean', default: false })
   isAdmin: boolean;
+
+  @Column({ type: 'simple-json', nullable: true })
+  oauthLinks: IOAuthLink[] | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;

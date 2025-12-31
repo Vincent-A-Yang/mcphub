@@ -5,11 +5,21 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { SmartRoutingConfig } from '../utils/smartRouting.js';
 
+// OAuth SSO linked account information
+export interface IOAuthLink {
+  provider: string; // Provider ID (e.g., 'google', 'github', 'microsoft', or custom OIDC provider name)
+  providerId: string; // User ID from the OAuth provider
+  email?: string; // Email from the OAuth provider
+  name?: string; // Display name from the OAuth provider
+  linkedAt?: string; // ISO timestamp when the account was linked
+}
+
 // User interface
 export interface IUser {
   username: string;
   password: string;
   isAdmin?: boolean;
+  oauthLinks?: IOAuthLink[]; // Linked OAuth accounts for SSO
 }
 
 // Group interface for server grouping
@@ -149,6 +159,55 @@ export interface OAuthProviderConfig {
   }>;
 }
 
+// OAuth SSO Provider Configuration for external identity providers (Google, Microsoft, GitHub, custom OIDC)
+export interface OAuthSSOProvider {
+  id: string; // Unique identifier for this provider (e.g., 'google', 'github', 'microsoft', 'custom-oidc')
+  name: string; // Display name shown on login page (e.g., 'Google', 'GitHub')
+  enabled?: boolean; // Enable/disable this provider (default: true)
+  type: 'google' | 'github' | 'microsoft' | 'oidc'; // Provider type for built-in or custom OIDC
+
+  // OAuth/OIDC endpoints (required for 'oidc' type, auto-discovered for built-in types)
+  issuerUrl?: string; // OIDC issuer URL for discovery (e.g., 'https://accounts.google.com')
+  authorizationUrl?: string; // OAuth authorization endpoint
+  tokenUrl?: string; // OAuth token endpoint
+  userInfoUrl?: string; // OIDC userinfo endpoint
+
+  // Client credentials
+  clientId: string; // OAuth client ID from the provider
+  clientSecret: string; // OAuth client secret from the provider
+
+  // Scope configuration
+  scopes?: string[]; // Scopes to request (default: ['openid', 'email', 'profile'])
+
+  // Role/admin mapping configuration
+  roleMapping?: {
+    // Map provider claims/groups to MCPHub admin role
+    adminClaim?: string; // Claim name to check for admin status (e.g., 'groups', 'roles')
+    adminValues?: string[]; // Values that grant admin access (e.g., ['admin', 'mcphub-admin'])
+    // Default role for new users (if not matched by adminValues)
+    defaultIsAdmin?: boolean; // Default admin status for auto-provisioned users (default: false)
+  };
+
+  // User attribute mapping (for custom OIDC providers)
+  attributeMapping?: {
+    username?: string; // Claim to use as username (default: 'email' or 'preferred_username')
+    email?: string; // Claim to use as email (default: 'email')
+    name?: string; // Claim to use as display name (default: 'name')
+  };
+
+  // Auto-provisioning settings
+  autoProvision?: boolean; // Auto-create users on first SSO login (default: true)
+  allowLinking?: boolean; // Allow existing users to link their accounts (default: true)
+}
+
+// OAuth SSO Configuration (stored in systemConfig.oauthSSO)
+export interface OAuthSSOConfig {
+  enabled?: boolean; // Enable/disable SSO functionality globally (default: false)
+  providers?: OAuthSSOProvider[]; // Array of configured SSO providers
+  callbackBaseUrl?: string; // Base URL for OAuth callbacks (auto-detected if not set)
+  allowLocalAuth?: boolean; // Allow local username/password auth alongside SSO (default: true)
+}
+
 export interface SystemConfig {
   routing?: {
     enableGlobalRoute?: boolean; // Controls whether the /sse endpoint without group is enabled
@@ -172,6 +231,7 @@ export interface SystemConfig {
   nameSeparator?: string; // Separator used between server name and tool/prompt name (default: '-')
   oauth?: OAuthProviderConfig; // OAuth provider configuration for upstream MCP servers
   oauthServer?: OAuthServerConfig; // OAuth authorization server configuration for MCPHub itself
+  oauthSSO?: OAuthSSOConfig; // OAuth SSO configuration for external identity providers (Google, Microsoft, GitHub, OIDC)
   enableSessionRebuild?: boolean; // Controls whether server session rebuild is enabled
 }
 

@@ -79,7 +79,15 @@
     "passwordRequireLetter": "密码必须包含至少一个字母",
     "passwordRequireNumber": "密码必须包含至少一个数字",
     "passwordRequireSpecial": "密码必须包含至少一个特殊字符",
-    "passwordStrengthHint": "密码必须至少 8 个字符，且包含字母、数字和特殊字符"
+    "passwordStrengthHint": "密码必须至少 8 个字符，且包含字母、数字和特殊字符",
+    "continueWith": "使用 {{provider}} 登录",
+    "orContinueWith": "或使用账号登录",
+    "noLoginMethodsAvailable": "没有可用的登录方式，请联系管理员。",
+    "ssoProcessing": "正在处理登录...",
+    "ssoTokenInvalid": "认证失败，请重试。",
+    "ssoCallbackError": "认证过程中发生错误。",
+    "ssoNoToken": "未收到认证令牌。",
+    "redirectingToLogin": "正在跳转到登录页面..."
   },
   "server": {
     "addServer": "添加服务器",
