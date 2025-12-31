@@ -24,6 +24,7 @@ import {
   isLocalAuthAllowed,
   getPublicProviderInfo,
   clearProviderCache,
+  stopStateCleanup,
 } from '../../src/services/oauthSsoService.js';
 
 describe('OAuth SSO Service', () => {
@@ -31,6 +32,11 @@ describe('OAuth SSO Service', () => {
     typeof daoModule.getSystemConfigDao
   >;
   const mockGetUserDao = daoModule.getUserDao as jest.MockedFunction<typeof daoModule.getUserDao>;
+
+  // Stop the cleanup interval to prevent Jest from hanging
+  afterAll(() => {
+    stopStateCleanup();
+  });
 
   const defaultSsoConfig = {
     enabled: true,

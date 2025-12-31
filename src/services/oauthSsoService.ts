@@ -11,7 +11,9 @@ import { getSystemConfigDao, getUserDao } from '../dao/index.js';
 import { IUser, OAuthSsoProviderConfig, OAuthSsoConfig } from '../types/index.js';
 
 // In-memory store for OAuth state (code verifier, state, etc.)
-// In production, consider using Redis or database for multi-instance deployments
+// NOTE: This implementation uses in-memory storage which is suitable for single-instance deployments.
+// For multi-instance/scaled deployments, implement Redis or database-backed state storage
+// to ensure OAuth callbacks reach the correct instance where the state was stored.
 interface OAuthStateEntry {
   codeVerifier: string;
   providerId: string;
@@ -23,14 +25,48 @@ const stateStore = new Map<string, OAuthStateEntry>();
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Cleanup old state entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [state, entry] of stateStore.entries()) {
-    if (now - entry.createdAt > STATE_TTL_MS) {
-      stateStore.delete(state);
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+function startStateCleanup(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [state, entry] of stateStore.entries()) {
+      if (now - entry.createdAt > STATE_TTL_MS) {
+        stateStore.delete(state);
+      }
     }
+  }, 60 * 1000); // Cleanup every minute
+}
+
+// Start cleanup on module load
+startStateCleanup();
+
+/**
+ * Stop the state cleanup interval (useful for tests and graceful shutdown)
+ */
+export function stopStateCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
-}, 60 * 1000); // Cleanup every minute
+}
+
+// GitHub API response types for type safety
+interface GitHubUserResponse {
+  id: number;
+  login: string;
+  name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
+interface GitHubEmailResponse {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+  visibility?: string;
+}
 
 // Provider configurations cache
 const providerConfigsCache = new Map<
@@ -326,7 +362,7 @@ async function getUserInfo(
       throw new Error(`Failed to fetch GitHub user info: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as GitHubUserResponse;
 
     // Fetch email separately if not public
     let email = data.email;
@@ -339,8 +375,8 @@ async function getUserInfo(
       });
 
       if (emailResponse.ok) {
-        const emails = await emailResponse.json();
-        const primaryEmail = emails.find((e: any) => e.primary);
+        const emails = (await emailResponse.json()) as GitHubEmailResponse[];
+        const primaryEmail = emails.find((e) => e.primary);
         email = primaryEmail?.email || emails[0]?.email;
       }
     }

@@ -12,11 +12,39 @@ import {
   getPublicProviderInfo,
   isLocalAuthAllowed,
   isOAuthSsoEnabled,
+  getOAuthSsoConfig as getSsoConfigFromService,
 } from '../services/oauthSsoService.js';
 import { JWT_SECRET } from '../config/jwt.js';
 import config from '../config/index.js';
 
 const TOKEN_EXPIRY = '24h';
+
+/**
+ * Get the base URL for OAuth callbacks
+ * Uses configured callbackBaseUrl if available, otherwise derives from request
+ * This approach is more secure than blindly trusting forwarded headers
+ */
+async function getCallbackBaseUrl(req: Request): Promise<string> {
+  // First, check if a callback base URL is configured (most secure option)
+  const ssoConfig = await getSsoConfigFromService();
+  if (ssoConfig?.callbackBaseUrl) {
+    return ssoConfig.callbackBaseUrl;
+  }
+
+  // Fall back to deriving from request (less secure, but works in simpler setups)
+  // Only trust forwarded headers if app is configured to trust proxy
+  if (req.app.get('trust proxy') && req.headers['x-forwarded-proto'] && req.headers['x-forwarded-host']) {
+    const proto = Array.isArray(req.headers['x-forwarded-proto'])
+      ? req.headers['x-forwarded-proto'][0]
+      : req.headers['x-forwarded-proto'];
+    const host = Array.isArray(req.headers['x-forwarded-host'])
+      ? req.headers['x-forwarded-host'][0]
+      : req.headers['x-forwarded-host'];
+    return `${proto}://${host}`;
+  }
+
+  return `${req.protocol}://${req.get('host')}`;
+}
 
 /**
  * Get OAuth SSO configuration for frontend
@@ -65,10 +93,9 @@ export const initiateOAuthLogin = async (req: Request, res: Response): Promise<v
     }
 
     // Build callback URL
-    const baseUrl =
-      req.headers['x-forwarded-proto'] && req.headers['x-forwarded-host']
-        ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
-        : `${req.protocol}://${req.get('host')}`;
+    // Note: Use configured callback base URL from oauthSso config if available
+    // This avoids relying on potentially untrusted forwarded headers
+    const baseUrl = await getCallbackBaseUrl(req);
 
     const callbackUrl = `${baseUrl}${config.basePath}/api/auth/sso/${providerId}/callback`;
 
@@ -121,10 +148,7 @@ export const handleOAuthCallback = async (req: Request, res: Response): Promise<
     }
 
     // Build callback URL (same as used in initiate)
-    const baseUrl =
-      req.headers['x-forwarded-proto'] && req.headers['x-forwarded-host']
-        ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
-        : `${req.protocol}://${req.get('host')}`;
+    const baseUrl = await getCallbackBaseUrl(req);
 
     const callbackUrl = `${baseUrl}${config.basePath}/api/auth/sso/${providerId}/callback`;
 
