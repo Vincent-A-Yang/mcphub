@@ -28,7 +28,8 @@
               "features/server-management",
               "features/group-management",
               "features/smart-routing",
-              "features/oauth"
+              "features/oauth",
+              "features/output-compression"
             ]
           },
           {

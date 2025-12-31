@@ -1,0 +1,109 @@
+---
+title: 'Output Compression'
+description: 'Reduce token consumption by compressing MCP tool outputs'
+---
+
+# Output Compression
+
+MCPHub provides an AI-powered compression mechanism to reduce token consumption from MCP tool outputs. This feature is particularly useful when dealing with large outputs that can significantly impact system efficiency and scalability.
+
+## Overview
+
+The compression feature uses a lightweight AI model (by default, `gpt-4o-mini`) to intelligently compress MCP tool outputs while preserving all essential information. This can help:
+
+- **Reduce token overhead** by compressing verbose tool information
+- **Lower operational costs** associated with token consumption
+- **Improve performance** for downstream processing
+- **Better resource utilization** in resource-constrained environments
+
+## Configuration
+
+Add the compression configuration to your `systemConfig` section in `mcp_settings.json`:
+
+```json
+{
+  "systemConfig": {
+    "compression": {
+      "enabled": true,
+      "model": "gpt-4o-mini",
+      "maxInputTokens": 100000,
+      "targetReductionRatio": 0.5
+    }
+  }
+}
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable or disable output compression |
+| `model` | string | `"gpt-4o-mini"` | AI model to use for compression |
+| `maxInputTokens` | number | `100000` | Maximum input tokens for compression |
+| `targetReductionRatio` | number | `0.5` | Target size reduction ratio (0.0-1.0) |
+
+## Requirements
+
+Output compression requires:
+
+1. An OpenAI API key configured in the smart routing settings
+2. The compression feature must be explicitly enabled
+
+### Setting up OpenAI API Key
+
+Configure your OpenAI API key using environment variables or system configuration:
+
+**Environment Variable:**
+```bash
+export OPENAI_API_KEY=your-api-key
+```
+
+**Or in systemConfig:**
+```json
+{
+  "systemConfig": {
+    "smartRouting": {
+      "openaiApiKey": "your-api-key",
+      "openaiApiBaseUrl": "https://api.openai.com/v1"
+    }
+  }
+}
+```
+
+## How It Works
+
+1. **Content Size Check**: When a tool call completes, the compression service checks if the output is large enough to benefit from compression (threshold is 10% of `maxInputTokens` or 1000 tokens, whichever is smaller)
+
+2. **AI Compression**: If the content exceeds the threshold, it's sent to the configured AI model with instructions to compress while preserving essential information
+
+3. **Size Validation**: The compressed result is compared with the original; if compression didn't reduce the size, the original content is used
+
+4. **Error Handling**: If compression fails for any reason, the original content is returned unchanged
+
+## Fallback Mechanism
+
+The compression feature includes graceful degradation for several scenarios:
+
+- **Compression disabled**: Original content is returned
+- **No API key**: Original content is returned with a warning
+- **Small content**: Content below threshold is not compressed
+- **API errors**: Original content is returned on any API failure
+- **Error responses**: Tool error responses are never compressed
+- **Non-text content**: Images and other media types are preserved as-is
+
+## Best Practices
+
+1. **Start with defaults**: The default configuration provides a good balance between compression and quality
+
+2. **Monitor results**: Review compressed outputs to ensure important information isn't lost
+
+3. **Adjust threshold**: If you have consistently large outputs, consider lowering `targetReductionRatio` for more aggressive compression
+
+4. **Use efficient models**: The default `gpt-4o-mini` provides a good balance of cost and quality; switch to `gpt-4o` if you need higher quality compression
+
+## Limitations
+
+- Compression adds latency due to the AI API call
+- API costs apply for each compression operation
+- Very short outputs won't be compressed (below threshold)
+- Binary/non-text content is not compressed
