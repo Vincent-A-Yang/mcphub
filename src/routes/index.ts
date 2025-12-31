@@ -112,6 +112,12 @@ import {
   updateBearerKey,
   deleteBearerKey,
 } from '../controllers/bearerKeyController.js';
+import {
+  getOAuthSsoConfig,
+  initiateOAuthLogin,
+  handleOAuthCallback as handleOAuthSsoCallback,
+  listOAuthProviders,
+} from '../controllers/oauthSsoController.js';
 import { auth } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -272,6 +278,12 @@ export const initRoutes = (app: express.Application): void => {
     ],
     changePassword,
   );
+
+  // OAuth SSO routes (no auth required - these are for logging in)
+  router.get('/auth/sso/config', getOAuthSsoConfig);
+  router.get('/auth/sso/providers', listOAuthProviders);
+  router.get('/auth/sso/:providerId', initiateOAuthLogin);
+  router.get('/auth/sso/:providerId/callback', handleOAuthSsoCallback);
 
   // Runtime configuration endpoint (no auth required for frontend initialization)
   app.get(`${config.basePath}/config`, getRuntimeConfig);

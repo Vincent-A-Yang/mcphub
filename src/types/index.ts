@@ -10,6 +10,12 @@ export interface IUser {
   username: string;
   password: string;
   isAdmin?: boolean;
+  // OAuth SSO fields
+  oauthProvider?: string; // OAuth provider ID (e.g., 'google', 'microsoft', 'github')
+  oauthSubject?: string; // OAuth subject (unique user ID from provider)
+  email?: string; // User email (from OAuth profile)
+  displayName?: string; // Display name (from OAuth profile)
+  avatarUrl?: string; // Avatar URL (from OAuth profile)
 }
 
 // Group interface for server grouping
@@ -124,6 +130,43 @@ export interface MCPRouterCallToolResponse {
   isError: boolean;
 }
 
+// OAuth SSO Provider Configuration for user authentication
+export type OAuthSsoProviderType = 'google' | 'microsoft' | 'github' | 'oidc';
+
+export interface OAuthSsoProviderConfig {
+  id: string; // Unique identifier for this provider (e.g., 'google', 'my-company-sso')
+  type: OAuthSsoProviderType; // Provider type
+  name: string; // Display name (e.g., 'Google', 'Microsoft', 'Company SSO')
+  enabled?: boolean; // Whether this provider is enabled (default: true)
+  clientId: string; // OAuth client ID
+  clientSecret: string; // OAuth client secret
+  // For OIDC providers, discovery URL or explicit endpoints
+  issuerUrl?: string; // OIDC issuer URL for auto-discovery (e.g., 'https://accounts.google.com')
+  // Explicit endpoints (optional, can be auto-discovered for OIDC)
+  authorizationUrl?: string; // OAuth authorization endpoint
+  tokenUrl?: string; // OAuth token endpoint
+  userInfoUrl?: string; // OAuth userinfo endpoint
+  // Scope configuration
+  scopes?: string[]; // OAuth scopes to request (default varies by provider)
+  // Role/admin mapping
+  adminClaim?: string; // Claim name to check for admin role (e.g., 'groups', 'roles')
+  adminClaimValues?: string[]; // Values that grant admin access (e.g., ['admin', 'mcphub-admins'])
+  // Auto-provisioning options
+  autoProvision?: boolean; // Auto-create users on first login (default: true)
+  defaultAdmin?: boolean; // Whether auto-provisioned users are admins by default (default: false)
+  // UI options
+  icon?: string; // Icon identifier for UI (e.g., 'google', 'microsoft', 'github', 'key')
+  buttonText?: string; // Custom button text (e.g., 'Sign in with Google')
+}
+
+// OAuth SSO configuration in SystemConfig
+export interface OAuthSsoConfig {
+  enabled?: boolean; // Enable/disable OAuth SSO globally
+  providers?: OAuthSsoProviderConfig[]; // List of configured SSO providers
+  allowLocalAuth?: boolean; // Allow local username/password auth alongside SSO (default: true)
+  callbackBaseUrl?: string; // Base URL for OAuth callbacks (auto-detected if not set)
+}
+
 // OAuth Provider Configuration for MCP Authorization Server
 export interface OAuthProviderConfig {
   enabled?: boolean; // Enable/disable OAuth provider
@@ -172,6 +215,7 @@ export interface SystemConfig {
   nameSeparator?: string; // Separator used between server name and tool/prompt name (default: '-')
   oauth?: OAuthProviderConfig; // OAuth provider configuration for upstream MCP servers
   oauthServer?: OAuthServerConfig; // OAuth authorization server configuration for MCPHub itself
+  oauthSso?: OAuthSsoConfig; // OAuth SSO configuration for user authentication
   enableSessionRebuild?: boolean; // Controls whether server session rebuild is enabled
 }
 

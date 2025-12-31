@@ -840,5 +840,25 @@
     "internalError": "Internal Error",
     "internalErrorMessage": "An unexpected error occurred while processing the OAuth callback.",
     "closeWindow": "Close Window"
+  },
+  "oauthSso": {
+    "errors": {
+      "providerIdRequired": "Provider ID is required",
+      "providerNotFound": "OAuth provider not found",
+      "missingState": "Missing OAuth state parameter",
+      "missingCode": "Missing authorization code",
+      "invalidState": "Invalid or expired OAuth state",
+      "authFailed": "OAuth authentication failed",
+      "userNotProvisioned": "User not found and auto-provisioning is disabled"
+    },
+    "signInWith": "Sign in with {{provider}}",
+    "orContinueWith": "Or continue with",
+    "continueWithProvider": "Continue with {{provider}}",
+    "loginWithSso": "Login with SSO",
+    "providers": {
+      "google": "Google",
+      "microsoft": "Microsoft",
+      "github": "GitHub"
+    }
   }
 }

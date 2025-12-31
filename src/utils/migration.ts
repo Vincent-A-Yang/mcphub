@@ -46,6 +46,11 @@ export async function migrateToDatabase(): Promise<boolean> {
             username: user.username,
             password: user.password,
             isAdmin: user.isAdmin || false,
+            oauthProvider: user.oauthProvider,
+            oauthSubject: user.oauthSubject,
+            email: user.email,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
           });
           console.log(`  - Created user: ${user.username}`);
         } else {
@@ -116,6 +121,7 @@ export async function migrateToDatabase(): Promise<boolean> {
         nameSeparator: settings.systemConfig.nameSeparator,
         oauth: settings.systemConfig.oauth || {},
         oauthServer: settings.systemConfig.oauthServer || {},
+        oauthSso: settings.systemConfig.oauthSso || {},
         enableSessionRebuild: settings.systemConfig.enableSessionRebuild,
       };
       await systemConfigRepo.update(systemConfig);

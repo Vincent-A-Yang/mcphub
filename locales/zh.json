@@ -842,5 +842,25 @@
     "internalError": "内部错误",
     "internalErrorMessage": "处理 OAuth 回调时发生意外错误。",
     "closeWindow": "关闭窗口"
+  },
+  "oauthSso": {
+    "errors": {
+      "providerIdRequired": "需要提供身份验证提供商 ID",
+      "providerNotFound": "未找到 OAuth 身份验证提供商",
+      "missingState": "缺少 OAuth 状态参数",
+      "missingCode": "缺少授权码",
+      "invalidState": "OAuth 状态无效或已过期",
+      "authFailed": "OAuth 身份验证失败",
+      "userNotProvisioned": "用户未找到且自动创建用户已禁用"
+    },
+    "signInWith": "使用 {{provider}} 登录",
+    "orContinueWith": "或使用以下方式继续",
+    "continueWithProvider": "使用 {{provider}} 继续",
+    "loginWithSso": "使用 SSO 登录",
+    "providers": {
+      "google": "Google",
+      "microsoft": "Microsoft",
+      "github": "GitHub"
+    }
   }
 }

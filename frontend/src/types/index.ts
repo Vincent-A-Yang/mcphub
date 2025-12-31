@@ -381,6 +381,21 @@ export interface AuthResponse {
   isUsingDefaultPassword?: boolean;
 }
 
+// OAuth SSO types
+export interface OAuthSsoProvider {
+  id: string;
+  name: string;
+  type: string;
+  icon?: string;
+  buttonText?: string;
+}
+
+export interface OAuthSsoConfig {
+  enabled: boolean;
+  providers: OAuthSsoProvider[];
+  localAuthAllowed: boolean;
+}
+
 // Official Registry types (from registry.modelcontextprotocol.io)
 export interface RegistryVariable {
   choices?: string[];

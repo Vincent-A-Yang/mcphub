@@ -3,6 +3,7 @@ import {
   LoginCredentials,
   RegisterCredentials,
   ChangePasswordCredentials,
+  OAuthSsoConfig,
 } from '../types';
 import { apiPost, apiGet } from '../utils/fetchInterceptor';
 import { getToken, setToken, removeToken } from '../utils/interceptors';
@@ -103,6 +104,30 @@ export const changePassword = async (
       message: 'An error occurred while changing password',
     };
   }
+};
+
+// Get OAuth SSO configuration
+export const getOAuthSsoConfig = async (): Promise<OAuthSsoConfig | null> => {
+  try {
+    const response = await apiGet<{ success: boolean; data: OAuthSsoConfig }>('/auth/sso/config');
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return null;
+  } catch (error) {
+    console.error('Get OAuth SSO config error:', error);
+    return null;
+  }
+};
+
+// Initiate OAuth SSO login (redirects to provider)
+export const initiateOAuthSsoLogin = (providerId: string, returnUrl?: string): void => {
+  const basePath = import.meta.env.VITE_BASE_PATH || '';
+  let url = `${basePath}/api/auth/sso/${providerId}`;
+  if (returnUrl) {
+    url += `?returnUrl=${encodeURIComponent(returnUrl)}`;
+  }
+  window.location.href = url;
 };
 
 // Logout user
