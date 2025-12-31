@@ -196,7 +196,7 @@ ${content}`;
       };
     }
 
-    const reductionPercent = ((originalLength - compressedLength) / originalLength * 100).toFixed(1);
+    const reductionPercent = (((originalLength - compressedLength) / originalLength) * 100).toFixed(1);
     console.log(`Compressed output: ${originalLength} -> ${compressedLength} chars (${reductionPercent}% reduction)`);
 
     return {

@@ -155,16 +155,16 @@ describe('CompressionService', () => {
       const text = 'Hello world';
       const tokens = estimateTokenCount(text);
 
-      // 11 characters / 4 = 2.75, ceil = 3
-      expect(tokens).toBe(3);
+      // Estimate based on ~4 chars per token
+      expect(tokens).toBe(Math.ceil(text.length / 4));
     });
 
     it('should estimate tokens for longer text', () => {
       const text = 'This is a longer piece of text that should have more tokens';
       const tokens = estimateTokenCount(text);
 
-      // 59 characters / 4 = 14.75, ceil = 15
-      expect(tokens).toBe(15);
+      // Estimate based on ~4 chars per token
+      expect(tokens).toBe(Math.ceil(text.length / 4));
     });
 
     it('should handle empty string', () => {
@@ -183,7 +183,7 @@ describe('CompressionService', () => {
     });
 
     it('should return true for large content', () => {
-      // Create content larger than the threshold (1000 tokens = ~4000 chars)
+      // Create content larger than the threshold
       const content = 'x'.repeat(5000);
       const result = shouldCompress(content, 100000);
 
@@ -191,7 +191,7 @@ describe('CompressionService', () => {
     });
 
     it('should use 10% of maxInputTokens as threshold', () => {
-      // With maxInputTokens = 1000, threshold = 100 tokens = ~400 chars
+      // Test threshold behavior with different content sizes
       const smallContent = 'x'.repeat(300);
       const largeContent = 'x'.repeat(500);
 
