@@ -1,0 +1,218 @@
+---
+title: OAuth SSO Configuration
+description: Configure OAuth 2.0 / OIDC Single Sign-On for MCPHub
+---
+
+# OAuth SSO Configuration
+
+MCPHub supports OAuth 2.0 / OIDC Single Sign-On (SSO) for enterprise authentication, allowing users to log in using their existing identity provider accounts (Google, Microsoft, GitHub, or custom OIDC providers).
+
+## Overview
+
+SSO support allows:
+- Login via major providers (Google, Microsoft, GitHub)
+- Custom OIDC provider integration
+- Auto-provisioning of new users from OAuth profiles
+- Role mapping from provider claims/groups
+- Hybrid auth (both SSO and local username/password)
+
+## Configuration
+
+Add the `oauthSSO` section to your `mcp_settings.json` under `systemConfig`:
+
+```json
+{
+  "systemConfig": {
+    "oauthSSO": {
+      "enabled": true,
+      "allowLocalAuth": true,
+      "callbackBaseUrl": "https://your-mcphub-domain.com",
+      "providers": [
+        {
+          "id": "google",
+          "name": "Google",
+          "type": "google",
+          "clientId": "your-google-client-id",
+          "clientSecret": "your-google-client-secret"
+        },
+        {
+          "id": "github",
+          "name": "GitHub",
+          "type": "github",
+          "clientId": "your-github-client-id",
+          "clientSecret": "your-github-client-secret"
+        },
+        {
+          "id": "microsoft",
+          "name": "Microsoft",
+          "type": "microsoft",
+          "clientId": "your-microsoft-client-id",
+          "clientSecret": "your-microsoft-client-secret"
+        }
+      ]
+    }
+  }
+}
+```
+
+## Provider Configuration
+
+### Google
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing one
+3. Navigate to "APIs & Services" → "Credentials"
+4. Create OAuth 2.0 Client ID (Web application)
+5. Add authorized redirect URI: `https://your-domain/api/auth/sso/google/callback`
+6. Copy Client ID and Client Secret
+
+```json
+{
+  "id": "google",
+  "name": "Google",
+  "type": "google",
+  "clientId": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+  "clientSecret": "YOUR_GOOGLE_CLIENT_SECRET"
+}
+```
+
+### GitHub
+
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Click "New OAuth App"
+3. Set Authorization callback URL: `https://your-domain/api/auth/sso/github/callback`
+4. Copy Client ID and generate Client Secret
+
+```json
+{
+  "id": "github",
+  "name": "GitHub",
+  "type": "github",
+  "clientId": "YOUR_GITHUB_CLIENT_ID",
+  "clientSecret": "YOUR_GITHUB_CLIENT_SECRET"
+}
+```
+
+### Microsoft (Azure AD)
+
+1. Go to [Azure Portal](https://portal.azure.com/) → Azure Active Directory
+2. Navigate to "App registrations" → "New registration"
+3. Add redirect URI: `https://your-domain/api/auth/sso/microsoft/callback`
+4. Under "Certificates & secrets", create a new client secret
+5. Copy Application (client) ID and client secret value
+
+```json
+{
+  "id": "microsoft",
+  "name": "Microsoft",
+  "type": "microsoft",
+  "clientId": "YOUR_AZURE_CLIENT_ID",
+  "clientSecret": "YOUR_AZURE_CLIENT_SECRET"
+}
+```
+
+### Custom OIDC Provider
+
+For other OIDC-compatible identity providers:
+
+```json
+{
+  "id": "custom-idp",
+  "name": "Corporate SSO",
+  "type": "oidc",
+  "issuerUrl": "https://idp.example.com",
+  "authorizationUrl": "https://idp.example.com/oauth2/authorize",
+  "tokenUrl": "https://idp.example.com/oauth2/token",
+  "userInfoUrl": "https://idp.example.com/oauth2/userinfo",
+  "clientId": "YOUR_CLIENT_ID",
+  "clientSecret": "YOUR_CLIENT_SECRET",
+  "scopes": ["openid", "email", "profile"],
+  "attributeMapping": {
+    "username": "preferred_username",
+    "email": "email",
+    "name": "name"
+  }
+}
+```
+
+## Role Mapping
+
+Configure automatic admin role assignment based on provider claims:
+
+```json
+{
+  "id": "google",
+  "name": "Google",
+  "type": "google",
+  "clientId": "...",
+  "clientSecret": "...",
+  "roleMapping": {
+    "adminClaim": "groups",
+    "adminValues": ["mcphub-admins", "engineering-leads"],
+    "defaultIsAdmin": false
+  }
+}
+```
+
+This configuration:
+- Checks the `groups` claim in the user's profile
+- Grants admin access if any value matches `mcphub-admins` or `engineering-leads`
+- Non-matching users get regular (non-admin) access
+
+## Configuration Options
+
+### Global Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable/disable SSO globally |
+| `allowLocalAuth` | boolean | `true` | Allow local username/password auth alongside SSO |
+| `callbackBaseUrl` | string | auto-detected | Base URL for OAuth callbacks |
+
+### Provider Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier for the provider |
+| `name` | string | Yes | Display name shown on login page |
+| `type` | string | Yes | Provider type: `google`, `github`, `microsoft`, or `oidc` |
+| `clientId` | string | Yes | OAuth client ID from the provider |
+| `clientSecret` | string | Yes | OAuth client secret from the provider |
+| `enabled` | boolean | No | Enable/disable this specific provider (default: true) |
+| `scopes` | string[] | No | OAuth scopes to request |
+| `autoProvision` | boolean | No | Auto-create users on first SSO login (default: true) |
+| `allowLinking` | boolean | No | Allow existing users to link their accounts (default: true) |
+
+### Custom OIDC Options (type: "oidc")
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `issuerUrl` | string | No | OIDC issuer URL for discovery |
+| `authorizationUrl` | string | Yes | OAuth authorization endpoint |
+| `tokenUrl` | string | Yes | OAuth token endpoint |
+| `userInfoUrl` | string | Yes | OIDC userinfo endpoint |
+| `attributeMapping` | object | No | Map provider claims to user attributes |
+
+## Security Notes
+
+1. **PKCE Support**: MCPHub uses PKCE (Proof Key for Code Exchange) for all providers except GitHub (which doesn't support it)
+2. **State Parameter**: A cryptographically random state is generated for each login to prevent CSRF attacks
+3. **Token Storage**: OAuth tokens from providers are not stored; only MCPHub's JWT is issued after successful authentication
+4. **Rate Limiting**: Consider implementing rate limiting at infrastructure level (reverse proxy) for SSO endpoints
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"OAuth provider not found"**: Check that the provider is enabled and configured correctly
+2. **"Invalid or expired OAuth state"**: The login attempt took too long (>10 minutes) or was a replay attack
+3. **"Could not determine username"**: The provider didn't return expected user attributes; check `attributeMapping`
+4. **"User account not found and auto-provisioning is disabled"**: Set `autoProvision: true` or pre-create the user
+
+### Debug Mode
+
+Enable debug logging by setting the `DEBUG` environment variable:
+
+```bash
+DEBUG=oauth* node dist/index.js
+```

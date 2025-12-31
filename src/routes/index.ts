@@ -285,7 +285,6 @@ export const initRoutes = (app: express.Application): void => {
 
   // Runtime configuration endpoint (no auth required for frontend initialization)
   app.get(`${config.basePath}/config`, getRuntimeConfig);
-  app.get(`${config.basePath}/config`, getRuntimeConfig);
 
   // Public configuration endpoint (no auth required to check skipAuth setting)
   app.get(`${config.basePath}/public-config`, getPublicConfig);

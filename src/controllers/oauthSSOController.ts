@@ -105,9 +105,16 @@ export const initiateSSOLogin = async (req: Request, res: Response): Promise<voi
 /**
  * Handle OAuth callback from provider
  * Exchanges code for tokens, gets user info, creates/updates user, returns JWT
+ * 
+ * Note: OAuth callback data (code, state) is received via query parameters as per OAuth 2.0 spec.
+ * This is secure because:
+ * - The authorization code is single-use and tied to a specific state
+ * - The state parameter prevents CSRF attacks
+ * - PKCE provides additional security for the token exchange
  */
 export const handleSSOCallback = async (req: Request, res: Response): Promise<void> => {
   const { provider } = req.params;
+  // lgtm[js/sensitive-get-query] - OAuth 2.0 requires code/state in query params
   const { code, state, error: oauthError, error_description } = req.query;
 
   try {

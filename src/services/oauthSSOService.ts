@@ -407,7 +407,7 @@ export async function handleOAuthCallback(
 ): Promise<{
   success: boolean;
   token?: string;
-  user?: { username: string; isAdmin: boolean };
+  user?: { username: string; isAdmin: boolean; permissions?: string[] };
   error?: string;
 }> {
   // Validate state
@@ -529,7 +529,7 @@ export async function handleOAuthCallback(
           username: user!.username,
           isAdmin: user!.isAdmin || false,
           permissions: dataService.getPermissions(user!),
-        } as { username: string; isAdmin: boolean },
+        },
       });
     });
   });
