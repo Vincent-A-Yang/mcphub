@@ -66,9 +66,8 @@ export const initiateSSOLogin = async (req: Request, res: Response): Promise<voi
     // Build redirect URI
     const settings = loadSettings();
     const callbackBaseUrl =
-      settings.systemConfig?.oauthSSO?.callbackBaseUrl ||
-      `${req.protocol}://${req.get('host')}`;
-    const redirectUri = `${callbackBaseUrl}/api/auth/sso/${provider}/callback`;
+      settings.systemConfig?.oauthSSO?.callbackBaseUrl || `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${callbackBaseUrl}/auth/sso/${provider}/callback`;
 
     // Generate authorization URL
     const result = generateAuthorizationUrl(provider, redirectUri);
@@ -105,7 +104,7 @@ export const initiateSSOLogin = async (req: Request, res: Response): Promise<voi
 /**
  * Handle OAuth callback from provider
  * Exchanges code for tokens, gets user info, creates/updates user, returns JWT
- * 
+ *
  * Note: OAuth callback data (code, state) is received via query parameters as per OAuth 2.0 spec.
  * This is secure because:
  * - The authorization code is single-use and tied to a specific state
@@ -134,9 +133,8 @@ export const handleSSOCallback = async (req: Request, res: Response): Promise<vo
     // Build redirect URI (must match the one used in initiation)
     const settings = loadSettings();
     const callbackBaseUrl =
-      settings.systemConfig?.oauthSSO?.callbackBaseUrl ||
-      `${req.protocol}://${req.get('host')}`;
-    const redirectUri = `${callbackBaseUrl}/api/auth/sso/${provider}/callback`;
+      settings.systemConfig?.oauthSSO?.callbackBaseUrl || `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${callbackBaseUrl}/auth/sso/${provider}/callback`;
 
     // Handle the callback
     const result = await handleCallback(String(state), String(code), redirectUri);
@@ -162,7 +160,9 @@ export const handleSSOCallback = async (req: Request, res: Response): Promise<vo
       res.redirect(redirectUrl.pathname + redirectUrl.search);
     } else {
       // For normal login, redirect to a special callback page that handles the token
-      res.redirect(`/sso-callback?token=${encodeURIComponent(result.token!)}&returnUrl=${encodeURIComponent(returnUrl)}`);
+      res.redirect(
+        `/sso-callback?token=${encodeURIComponent(result.token!)}&returnUrl=${encodeURIComponent(returnUrl)}`,
+      );
     }
   } catch (error) {
     console.error(`Error handling SSO callback for ${provider}:`, error);

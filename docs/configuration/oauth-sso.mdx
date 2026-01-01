@@ -63,7 +63,7 @@ Add the `oauthSSO` section to your `mcp_settings.json` under `systemConfig`:
 2. Create a new project or select existing one
 3. Navigate to "APIs & Services" → "Credentials"
 4. Create OAuth 2.0 Client ID (Web application)
-5. Add authorized redirect URI: `https://your-domain/api/auth/sso/google/callback`
+5. Add authorized redirect URI: `https://your-domain/auth/sso/google/callback`
 6. Copy Client ID and Client Secret
 
 ```json
@@ -80,7 +80,7 @@ Add the `oauthSSO` section to your `mcp_settings.json` under `systemConfig`:
 
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
 2. Click "New OAuth App"
-3. Set Authorization callback URL: `https://your-domain/api/auth/sso/github/callback`
+3. Set Authorization callback URL: `https://your-domain/auth/sso/github/callback`
 4. Copy Client ID and generate Client Secret
 
 ```json
@@ -97,7 +97,7 @@ Add the `oauthSSO` section to your `mcp_settings.json` under `systemConfig`:
 
 1. Go to [Azure Portal](https://portal.azure.com/) → Azure Active Directory
 2. Navigate to "App registrations" → "New registration"
-3. Add redirect URI: `https://your-domain/api/auth/sso/microsoft/callback`
+3. Add redirect URI: `https://your-domain/auth/sso/microsoft/callback`
 4. Under "Certificates & secrets", create a new client secret
 5. Copy Application (client) ID and client secret value
 

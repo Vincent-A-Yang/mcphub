@@ -43,6 +43,34 @@
     }
   ],
   "systemConfig": {
+    "oauthSSO": {
+      "enabled": true,
+      "allowLocalAuth": true,
+      "callbackBaseUrl": "https://your-mcphub-domain.com",
+      "providers": [
+        {
+          "id": "google",
+          "name": "Google",
+          "type": "google",
+          "clientId": "your-google-client-id",
+          "clientSecret": "your-google-client-secret"
+        },
+        {
+          "id": "github",
+          "name": "GitHub",
+          "type": "github",
+          "clientId": "your-github-client-id",
+          "clientSecret": "your-github-client-secret"
+        },
+        {
+          "id": "microsoft",
+          "name": "Microsoft",
+          "type": "microsoft",
+          "clientId": "your-microsoft-client-id",
+          "clientSecret": "your-microsoft-client-secret"
+        }
+      ]
+    },
     "oauthServer": {
       "enabled": true,
       "accessTokenLifetime": 3600,

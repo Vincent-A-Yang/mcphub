@@ -279,9 +279,9 @@ export const initRoutes = (app: express.Application): void => {
   );
 
   // OAuth SSO routes (no auth required - public endpoints)
-  router.get('/auth/sso/config', getSSOConfig); // Get SSO configuration for frontend
-  router.get('/auth/sso/:provider', initiateSSOLogin); // Initiate SSO login
-  router.get('/auth/sso/:provider/callback', handleSSOCallback); // Handle OAuth callback
+  app.get(`${config.basePath}/auth/sso/config`, getSSOConfig); // Get SSO configuration for frontend
+  app.get(`${config.basePath}/auth/sso/:provider`, initiateSSOLogin); // Initiate SSO login
+  app.get(`${config.basePath}/auth/sso/:provider/callback`, handleSSOCallback); // Handle OAuth callback
 
   // Runtime configuration endpoint (no auth required for frontend initialization)
   app.get(`${config.basePath}/config`, getRuntimeConfig);
