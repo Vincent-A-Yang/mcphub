@@ -69,6 +69,106 @@ const generateAzureOpenAIEmbedding = async (
   return embedding;
 };
 
+/**
+ * Check if a URL points to the official OpenAI API endpoint
+ * Used to determine whether to use the OpenAI library or direct fetch
+ * @param baseUrl The base URL to check
+ * @returns true if the URL is the official OpenAI API
+ */
+export function isOfficialOpenAIEndpoint(baseUrl: string | null | undefined): boolean {
+  if (!baseUrl || typeof baseUrl !== 'string') {
+    return false;
+  }
+
+  const normalizedUrl = baseUrl.toLowerCase().replace(/\/+$/, '');
+  return normalizedUrl.includes('api.openai.com');
+}
+
+/**
+ * Validate an embedding array to ensure it's not corrupted
+ * This helps detect issues with unofficial OpenAI-compatible APIs that may
+ * return malformed embeddings (all zeros, wrong dimensions, etc.)
+ *
+ * @param embedding The embedding array to validate
+ * @throws Error if the embedding is invalid
+ */
+export function validateEmbedding(embedding: number[]): void {
+  // Check if it's an array
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embedding must be an array');
+  }
+
+  // Check if it's empty
+  if (embedding.length === 0) {
+    throw new Error('Embedding cannot be empty');
+  }
+
+  // Check all values are finite numbers
+  for (let i = 0; i < embedding.length; i++) {
+    const value = embedding[i];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`Embedding contains invalid value at index ${i}: ${value}`);
+    }
+  }
+
+  // Check for all-zero or mostly-zero embeddings (corruption indicator)
+  const nonZeroCount = embedding.filter((v) => v !== 0).length;
+  const nonZeroRatio = nonZeroCount / embedding.length;
+
+  // Require at least 5% non-zero values (all-zero embeddings are useless)
+  if (nonZeroRatio < 0.05) {
+    throw new Error(
+      `Embedding has too many zero values (${((1 - nonZeroRatio) * 100).toFixed(1)}% zeros). ` +
+        'This may indicate corrupted data from an unofficial OpenAI-compatible API.',
+    );
+  }
+}
+
+/**
+ * Generate embedding using direct fetch for unofficial OpenAI-compatible APIs
+ * This bypasses the OpenAI Node.js library which can corrupt responses from some providers
+ *
+ * @param text The text to embed
+ * @param baseUrl The base URL of the API
+ * @param apiKey The API key
+ * @param model The embedding model name
+ * @returns The embedding array
+ */
+async function generateEmbeddingWithDirectFetch(
+  text: string,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+): Promise<number[]> {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
+  const url = `${normalizedBaseUrl}/embeddings`;
+
+  const response = await axios.post(
+    url,
+    {
+      model: model,
+      input: text,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  const embedding = response?.data?.data?.[0]?.embedding;
+
+  if (!Array.isArray(embedding)) {
+    throw new Error('Embeddings response missing embedding data');
+  }
+
+  // Validate the embedding before returning
+  validateEmbedding(embedding);
+
+  return embedding;
+}
+
 // Constants for embedding models
 const EMBEDDING_DIMENSIONS_SMALL = 1536; // OpenAI's text-embedding-3-small outputs 1536 dimensions
 const EMBEDDING_DIMENSIONS_LARGE = 3072; // OpenAI's text-embedding-3-large outputs 3072 dimensions
@@ -308,16 +408,48 @@ async function generateEmbedding(text: string): Promise<number[]> {
   }
 
   const config = await getOpenAIConfig();
-  const openai = await getOpenAIClient();
 
   // Check if API key is configured
-  if (!openai.apiKey) {
+  if (!config.apiKey) {
     console.warn('OpenAI API key is not configured. Using fallback embedding method.');
     return generateFallbackEmbedding(text);
   }
 
   // Truncate text if it's too long (OpenAI has token limits)
   const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
+
+  // Use direct fetch for unofficial OpenAI-compatible APIs to avoid response corruption
+  // The OpenAI Node.js library can corrupt embeddings from some providers (LM Studio, LocalAI, Ollama)
+  if (!isOfficialOpenAIEndpoint(config.baseURL)) {
+    try {
+      console.debug(
+        `Using direct fetch for unofficial API at ${config.baseURL} with model ${config.embeddingModel}`,
+      );
+      const embedding = await generateEmbeddingWithDirectFetch(
+        truncatedText,
+        config.baseURL,
+        config.apiKey,
+        config.embeddingModel,
+      );
+      return embedding;
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status;
+      const message = error instanceof Error ? error.message : String(error);
+
+      console.warn(
+        `Unofficial API embeddings request failed (status=${status ?? 'unknown'}). Falling back to local embeddings.`,
+      );
+      console.warn(
+        `Embedding config: baseURL=${config.baseURL || 'default'}, model=${config.embeddingModel || 'default'}`,
+      );
+      console.warn(`Embedding error: ${message}`);
+
+      return generateFallbackEmbedding(text);
+    }
+  }
+
+  // Use OpenAI library for official API
+  const openai = await getOpenAIClient();
 
   try {
     // Call OpenAI's embeddings API
@@ -326,8 +458,13 @@ async function generateEmbedding(text: string): Promise<number[]> {
       input: truncatedText,
     });
 
+    const embedding = response.data[0].embedding;
+
+    // Validate embedding even from official API (paranoid check)
+    validateEmbedding(embedding);
+
     // Return the embedding
-    return response.data[0].embedding;
+    return embedding;
   } catch (error: any) {
     const status = error?.status ?? error?.response?.status;
     const message = error instanceof Error ? error.message : String(error);
