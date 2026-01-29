@@ -37,6 +37,7 @@ import {
   isSmartRoutingGroup,
 } from './smartRoutingService.js';
 import { getActivityLoggingService } from './activityLoggingService.js';
+import { transformNpxCommand } from '../utils/npxTransform.js';
 
 const servers: { [sessionId: string]: Server } = {};
 
@@ -406,12 +407,17 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
     }
 
     // Apply proxychains4 wrapper if proxy is configured (Linux/macOS only)
-    const { command: finalCommand, args: finalArgs } = wrapWithProxychains(
+    const { command: proxyCommand, args: proxyArgs } = wrapWithProxychains(
       name,
       conf.command,
       replaceEnvVars(conf.args) as string[],
       conf.proxy,
     );
+
+    // Apply npx command transformation for Linux/Docker environments (Issue #590)
+    // This wraps npx commands in bash -c to handle npm packages with bin stubs
+    // that don't have proper shebangs
+    const { command: finalCommand, args: finalArgs } = transformNpxCommand(proxyCommand, proxyArgs);
 
     // Create STDIO transport with potentially wrapped command
     transport = new StdioClientTransport({
