@@ -328,6 +328,48 @@ export const cleanupAllServers = (): void => {
   });
 };
 
+/**
+ * Parse npx command arguments to extract package name and flags.
+ * Used for wrapping npx commands with explicit node execution.
+ */
+const parseNpxArgs = (
+  args: string[],
+): { packageName: string | null; hasYes: boolean; otherArgs: string[] } => {
+  let hasYes = false;
+  let packageName: string | null = null;
+  let packageFlag: string | null = null;
+  const otherArgs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '-y' || arg === '--yes') {
+      hasYes = true;
+    } else if (arg.startsWith('--package=')) {
+      packageFlag = arg.substring('--package='.length);
+    } else if (arg === '-p' || arg === '--package') {
+      if (i + 1 < args.length) {
+        packageFlag = args[++i];
+      }
+    } else if (arg === '-c' || arg === '--call') {
+      // Already has a call argument, return as-is (don't transform)
+      return { packageName: null, hasYes, otherArgs: args };
+    } else if (!arg.startsWith('-')) {
+      // First non-flag argument is the package name (or command to run)
+      if (!packageName) {
+        packageName = arg;
+      } else {
+        otherArgs.push(arg);
+      }
+    } else {
+      otherArgs.push(arg);
+    }
+  }
+
+  // Use packageFlag if specified, otherwise use packageName
+  return { packageName: packageFlag || packageName, hasYes, otherArgs };
+};
+
 // Helper function to create transport based on server configuration
 export const createTransportFromConfig = async (name: string, conf: ServerConfig): Promise<any> => {
   let transport;
@@ -384,6 +426,11 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
     // Stdio transport
     env['PATH'] = expandEnvVars(process.env.PATH as string) || '';
 
+    // Remove NODE_OPTIONS to prevent debugger flags from being inherited by child processes
+    // This prevents issues where child processes hang waiting for debugger attachment
+    // when the parent is run with --inspect or similar flags (e.g., in VS Code debugger)
+    delete env['NODE_OPTIONS'];
+
     const systemConfigDao = getSystemConfigDao();
     const systemConfig = await systemConfigDao.get();
     // Add UV_DEFAULT_INDEX and npm_config_registry if needed
@@ -405,11 +452,29 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
       env['npm_config_registry'] = systemConfig.install.npmRegistry;
     }
 
+    // Process args with environment variable replacement
+    const processedArgs = replaceEnvVars(conf.args) as string[];
+
+    // Apply npx wrapper if bin name is specified (fixes packages without proper shebang)
+    // When bin is specified, transform: npx -y PKG -> npx -y --package=PKG -c 'node "$(which BIN)"'
+    let wrappedArgs = processedArgs;
+
+    if (conf.bin && conf.command === 'npx' && process.platform !== 'win32') {
+      // Parse npx args to extract package name and flags
+      const { packageName, hasYes, otherArgs } = parseNpxArgs(processedArgs);
+      if (packageName) {
+        const pkgArg = `--package=${packageName}`;
+        const nodeCmd = `node "$(which ${conf.bin})"${otherArgs.length > 0 ? ' ' + otherArgs.map((a) => `"${a}"`).join(' ') : ''}`;
+        wrappedArgs = hasYes ? ['-y', pkgArg, '-c', nodeCmd] : [pkgArg, '-c', nodeCmd];
+        console.log(`[npx-wrapper] Using bin '${conf.bin}': npx ${processedArgs.join(' ')} -> npx ${wrappedArgs.join(' ')}`);
+      }
+    }
+
     // Apply proxychains4 wrapper if proxy is configured (Linux/macOS only)
     const { command: finalCommand, args: finalArgs } = wrapWithProxychains(
       name,
       conf.command,
-      replaceEnvVars(conf.args) as string[],
+      wrappedArgs,
       conf.proxy,
     );
 

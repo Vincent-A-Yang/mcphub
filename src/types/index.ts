@@ -303,6 +303,7 @@ export interface ServerConfig {
   url?: string; // URL for SSE or streamable HTTP servers
   command?: string; // Command to execute for stdio-based servers
   args?: string[]; // Arguments for the command
+  bin?: string; // Binary/executable name for npx packages (use when bin name differs from package name, e.g., 'rpg-mcp' for 'swiftfloatflow-mcp-rpg')
   env?: Record<string, string>; // Environment variables
   headers?: Record<string, string>; // HTTP headers for SSE/streamable-http/openapi servers
   enabled?: boolean; // Flag to enable/disable the server
