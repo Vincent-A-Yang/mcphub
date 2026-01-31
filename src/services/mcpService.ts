@@ -37,6 +37,7 @@ import {
   isSmartRoutingGroup,
 } from './smartRoutingService.js';
 import { getActivityLoggingService } from './activityLoggingService.js';
+import { transformNpxCommand } from '../utils/npxTransform.js';
 
 const servers: { [sessionId: string]: Server } = {};
 
@@ -384,6 +385,11 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
     // Stdio transport
     env['PATH'] = expandEnvVars(process.env.PATH as string) || '';
 
+    // Remove NODE_OPTIONS to prevent debugger flags from being inherited by child processes
+    // This prevents issues where child processes hang waiting for debugger attachment
+    // when the parent is run with --inspect or similar flags (e.g., in VS Code debugger)
+    delete env['NODE_OPTIONS'];
+
     const systemConfigDao = getSystemConfigDao();
     const systemConfig = await systemConfigDao.get();
     // Add UV_DEFAULT_INDEX and npm_config_registry if needed
@@ -405,11 +411,21 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
       env['npm_config_registry'] = systemConfig.install.npmRegistry;
     }
 
+    // Process args with environment variable replacement
+    const processedArgs = replaceEnvVars(conf.args) as string[];
+
+    // Apply npx wrapper if bin name is specified (fixes packages without proper shebang)
+    const { command: npxCommand, args: npxArgs } = transformNpxCommand(
+      conf.command,
+      processedArgs,
+      conf.bin,
+    );
+
     // Apply proxychains4 wrapper if proxy is configured (Linux/macOS only)
     const { command: finalCommand, args: finalArgs } = wrapWithProxychains(
       name,
-      conf.command,
-      replaceEnvVars(conf.args) as string[],
+      npxCommand,
+      npxArgs,
       conf.proxy,
     );
 

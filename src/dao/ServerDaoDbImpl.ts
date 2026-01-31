@@ -16,7 +16,10 @@ export class ServerDaoDbImpl implements ServerDao {
     return servers.map((s) => this.mapToServerConfig(s));
   }
 
-  async findAllPaginated(page: number, limit: number): Promise<PaginatedResult<ServerConfigWithName>> {
+  async findAllPaginated(
+    page: number,
+    limit: number,
+  ): Promise<PaginatedResult<ServerConfigWithName>> {
     const { data, total } = await this.repository.findAllPaginated(page, limit);
     const totalPages = Math.ceil(total / limit);
 
@@ -29,7 +32,11 @@ export class ServerDaoDbImpl implements ServerDao {
     };
   }
 
-  async findByOwnerPaginated(owner: string, page: number, limit: number): Promise<PaginatedResult<ServerConfigWithName>> {
+  async findByOwnerPaginated(
+    owner: string,
+    page: number,
+    limit: number,
+  ): Promise<PaginatedResult<ServerConfigWithName>> {
     const { data, total } = await this.repository.findByOwnerPaginated(owner, page, limit);
     const totalPages = Math.ceil(total / limit);
 
@@ -54,6 +61,7 @@ export class ServerDaoDbImpl implements ServerDao {
       url: entity.url,
       command: entity.command,
       args: entity.args,
+      bin: entity.bin,
       env: entity.env,
       headers: entity.headers,
       enabled: entity.enabled !== undefined ? entity.enabled : true,
@@ -79,6 +87,7 @@ export class ServerDaoDbImpl implements ServerDao {
       url: entity.url,
       command: entity.command,
       args: entity.args,
+      bin: entity.bin,
       env: entity.env,
       headers: entity.headers,
       enabled: entity.enabled,
@@ -158,6 +167,7 @@ export class ServerDaoDbImpl implements ServerDao {
     url?: string;
     command?: string;
     args?: string[];
+    bin?: string;
     env?: Record<string, string>;
     headers?: Record<string, string>;
     enabled: boolean;
@@ -177,6 +187,7 @@ export class ServerDaoDbImpl implements ServerDao {
       url: server.url,
       command: server.command,
       args: server.args,
+      bin: server.bin,
       env: server.env,
       headers: server.headers,
       enabled: server.enabled,

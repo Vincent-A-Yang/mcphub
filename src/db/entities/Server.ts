@@ -29,6 +29,9 @@ export class Server {
   @Column({ type: 'simple-json', nullable: true })
   args?: string[];
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  bin?: string;
+
   @Column({ type: 'simple-json', nullable: true })
   env?: Record<string, string>;
 
