@@ -61,7 +61,6 @@ export class ServerDaoDbImpl implements ServerDao {
       url: entity.url,
       command: entity.command,
       args: entity.args,
-      bin: entity.bin,
       env: entity.env,
       headers: entity.headers,
       enabled: entity.enabled !== undefined ? entity.enabled : true,
@@ -87,7 +86,6 @@ export class ServerDaoDbImpl implements ServerDao {
       url: entity.url,
       command: entity.command,
       args: entity.args,
-      bin: entity.bin,
       env: entity.env,
       headers: entity.headers,
       enabled: entity.enabled,
@@ -167,7 +165,6 @@ export class ServerDaoDbImpl implements ServerDao {
     url?: string;
     command?: string;
     args?: string[];
-    bin?: string;
     env?: Record<string, string>;
     headers?: Record<string, string>;
     enabled: boolean;
@@ -187,7 +184,6 @@ export class ServerDaoDbImpl implements ServerDao {
       url: server.url,
       command: server.command,
       args: server.args,
-      bin: server.bin,
       env: server.env,
       headers: server.headers,
       enabled: server.enabled,

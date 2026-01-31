@@ -414,26 +414,18 @@ export const createTransportFromConfig = async (name: string, conf: ServerConfig
     // Process args with environment variable replacement
     const processedArgs = replaceEnvVars(conf.args) as string[];
 
-    let resolvedBin = conf.bin;
     const shouldResolveBin =
       process.env.NODE_ENV !== 'test' && process.env.JEST_WORKER_ID === undefined;
-    if (
-      shouldResolveBin &&
-      !resolvedBin &&
-      conf.command === 'npx' &&
-      process.platform !== 'win32'
-    ) {
-      const detectedBin = await resolveNpxBin(processedArgs, env);
-      if (detectedBin) {
-        resolvedBin = detectedBin;
-      }
-    }
+    const detectedBin =
+      shouldResolveBin && conf.command === 'npx' && process.platform !== 'win32'
+        ? await resolveNpxBin(processedArgs, env)
+        : null;
 
-    // Apply npx wrapper if bin name is specified or resolved (fixes packages without proper shebang)
+    // Apply npx wrapper if bin name is resolved (fixes packages without proper shebang)
     const { command: npxCommand, args: npxArgs } = transformNpxCommand(
       conf.command,
       processedArgs,
-      resolvedBin,
+      detectedBin ?? undefined,
     );
 
     // Apply proxychains4 wrapper if proxy is configured (Linux/macOS only)
