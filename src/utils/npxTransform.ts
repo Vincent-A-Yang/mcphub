@@ -1,3 +1,6 @@
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
 export interface NpxParseResult {
   packageName: string | null;
   hasYes: boolean;
@@ -5,6 +8,9 @@ export interface NpxParseResult {
   npxFlags: string[];
   commandArgs: string[];
 }
+
+const execFileAsync = promisify(execFile);
+const npxBinCache = new Map<string, string | null>();
 
 const YES_FLAGS = new Set(['-y', '--yes']);
 const CALL_FLAGS = new Set(['-c', '--call']);
@@ -14,6 +20,98 @@ const isFlag = (value: string): boolean => value.startsWith('-');
 
 const escapeShellArg = (value: string): string => {
   return value.replace(/(["\\$`])/g, '\\$1');
+};
+
+export const stripPackageVersion = (packageName: string): string => {
+  if (packageName.startsWith('@')) {
+    const slashIndex = packageName.indexOf('/');
+    const lastAtIndex = packageName.lastIndexOf('@');
+    if (lastAtIndex > slashIndex) {
+      return packageName.slice(0, lastAtIndex);
+    }
+    return packageName;
+  }
+
+  const atIndex = packageName.indexOf('@');
+  if (atIndex > 0) {
+    return packageName.slice(0, atIndex);
+  }
+
+  return packageName;
+};
+
+export const deriveBinNameFromPackageName = (packageName: string): string => {
+  const stripped = stripPackageVersion(packageName);
+  if (stripped.startsWith('@')) {
+    const slashIndex = stripped.indexOf('/');
+    return slashIndex >= 0 ? stripped.slice(slashIndex + 1) : stripped;
+  }
+  return stripped;
+};
+
+export const selectBinNameFromNpmView = (packageName: string, binField: unknown): string | null => {
+  if (!binField) {
+    return null;
+  }
+
+  if (typeof binField === 'string') {
+    return deriveBinNameFromPackageName(packageName);
+  }
+
+  if (typeof binField === 'object') {
+    const keys = Object.keys(binField as Record<string, string>);
+    if (keys.length === 1) {
+      return keys[0];
+    }
+
+    const derived = deriveBinNameFromPackageName(packageName);
+    if (keys.includes(derived)) {
+      return derived;
+    }
+  }
+
+  return null;
+};
+
+export const resolveNpxBin = async (
+  args: string[],
+  env?: NodeJS.ProcessEnv,
+): Promise<string | null> => {
+  const { packageName, hasCall } = parseNpxArgs(args);
+  if (!packageName || hasCall) {
+    return null;
+  }
+
+  const normalizedPackage = stripPackageVersion(packageName);
+  if (npxBinCache.has(normalizedPackage)) {
+    return npxBinCache.get(normalizedPackage) ?? null;
+  }
+
+  try {
+    const { stdout } = await execFileAsync(
+      'npm',
+      ['view', normalizedPackage, 'bin', '--json', '--silent', '--loglevel=error'],
+      {
+        env,
+        timeout: 8000,
+        maxBuffer: 1024 * 1024,
+      },
+    );
+
+    const trimmed = stdout.trim();
+    if (!trimmed) {
+      npxBinCache.set(normalizedPackage, null);
+      return null;
+    }
+
+    const parsed = JSON.parse(trimmed);
+    const resolved = selectBinNameFromNpmView(normalizedPackage, parsed);
+    npxBinCache.set(normalizedPackage, resolved ?? null);
+    return resolved ?? null;
+  } catch (error) {
+    npxBinCache.set(normalizedPackage, null);
+    return null;
+  }
 };
 
 export const parseNpxArgs = (args: string[]): NpxParseResult => {

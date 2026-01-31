@@ -1,4 +1,10 @@
-import { parseNpxArgs, transformNpxCommand } from '../../src/utils/npxTransform.js';
+import {
+  deriveBinNameFromPackageName,
+  parseNpxArgs,
+  selectBinNameFromNpmView,
+  stripPackageVersion,
+  transformNpxCommand,
+} from '../../src/utils/npxTransform.js';
 
 describe('npxTransform', () => {
   describe('parseNpxArgs', () => {
@@ -67,6 +73,38 @@ describe('npxTransform', () => {
     it('does not transform when -c is already present', () => {
       const result = transformNpxCommand('npx', ['-c', 'node script.js'], 'bin', 'darwin');
       expect(result.transformed).toBe(false);
+    });
+  });
+
+  describe('bin name helpers', () => {
+    it('strips version suffix for unscoped packages', () => {
+      expect(stripPackageVersion('pkg@1.2.3')).toBe('pkg');
+    });
+
+    it('strips version suffix for scoped packages', () => {
+      expect(stripPackageVersion('@scope/pkg@2.0.0')).toBe('@scope/pkg');
+    });
+
+    it('derives bin name from scoped package', () => {
+      expect(deriveBinNameFromPackageName('@scope/pkg@3.1.0')).toBe('pkg');
+    });
+
+    it('selects bin name when bin field is a string', () => {
+      expect(selectBinNameFromNpmView('swiftfloatflow-mcp-rpg', 'index.js')).toBe(
+        'swiftfloatflow-mcp-rpg',
+      );
+    });
+
+    it('selects bin name when bin field has a single entry', () => {
+      expect(selectBinNameFromNpmView('swiftfloatflow-mcp-rpg', { 'rpg-mcp': 'index.js' })).toBe(
+        'rpg-mcp',
+      );
+    });
+
+    it('prefers derived bin name when multiple entries include it', () => {
+      expect(selectBinNameFromNpmView('@scope/pkg', { pkg: 'index.js', other: 'other.js' })).toBe(
+        'pkg',
+      );
     });
   });
 });
