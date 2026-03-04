@@ -119,6 +119,11 @@
       "apiKey": "${MCPROUTER_API_KEY}",
       "referer": "${MCPROUTER_REFERER}",
       "baseUrl": "${MCPROUTER_BASE_URL}"
+    },
+    "auth": {
+      "betterAuth": {
+        "enabled": false
+      }
     }
   }
 }
