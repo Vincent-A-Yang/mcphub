@@ -25,11 +25,6 @@
     "checking": "Vérification des mises à jour..."
   },
   "profile": {
-    "viewProfile": "Voir le profil",
-    "userCenter": "Centre utilisateur"
-  },
-  "sponsor": {
-    "label": "Sponsor",
     "title": "Soutenir le projet",
     "rewardAlt": "QR Code de récompense",
     "supportMessage": "Soutenez le développement de MCPHub en m'offrant un café !",
@@ -596,6 +591,9 @@
     "runPromptWithName": "Obtenir l'invite : {{name}}",
     "descriptionUpdateSuccess": "Description de l'invite mise à jour avec succès",
     "descriptionUpdateFailed": "Échec de la mise à jour de la description de l'invite",
+    "customPromptEmptyState": "Aucun prompt personnalisé de serveur n'est encore configuré",
+    "customPromptSaveSuccess": "Les prompts personnalisés du serveur ont été enregistrés avec succès",
+    "customPromptSaveFailed": "Échec de l'enregistrement des prompts personnalisés du serveur",
     "restoreDefault": "Restaurer par défaut",
     "restoreDefaultSuccess": "La description de l'invite a été restaurée à sa valeur par défaut",
     "restoreDefaultFailed": "Échec de la restauration de la description par défaut de l'invite"

@@ -25,11 +25,6 @@
     "checking": "Güncellemeler kontrol ediliyor..."
   },
   "profile": {
-    "viewProfile": "Profili görüntüle",
-    "userCenter": "Kullanıcı Merkezi"
-  },
-  "sponsor": {
-    "label": "Sponsor",
     "title": "Projeyi Destekle",
     "rewardAlt": "Ödül QR Kodu",
     "supportMessage": "Bana bir kahve ısmarlayarak MCPHub'ın geliştirilmesini destekleyin!",
@@ -596,6 +591,9 @@
     "runPromptWithName": "İsteği Getir: {{name}}",
     "descriptionUpdateSuccess": "İstek açıklaması başarıyla güncellendi",
     "descriptionUpdateFailed": "İstek açıklaması güncellenemedi",
+    "customPromptEmptyState": "Henüz sunucuya özel istem yapılandırılmadı",
+    "customPromptSaveSuccess": "Sunucu özel istemleri başarıyla kaydedildi",
+    "customPromptSaveFailed": "Sunucu özel istemleri kaydedilemedi",
     "restoreDefault": "Varsayılana dön",
     "restoreDefaultSuccess": "İstek açıklaması varsayılan değere döndürüldü",
     "restoreDefaultFailed": "Varsayılan istek açıklamasına dönülemedi"

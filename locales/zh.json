@@ -25,11 +25,6 @@
     "checking": "检查更新中..."
   },
   "profile": {
-    "viewProfile": "查看个人中心",
-    "userCenter": "个人中心"
-  },
-  "sponsor": {
-    "label": "赞助",
     "title": "支持项目",
     "rewardAlt": "赞赏码",
     "supportMessage": "通过捐赠支持 MCPHub 的开发！",
@@ -597,6 +592,9 @@
     "runPromptWithName": "获取提示词: {{name}}",
     "descriptionUpdateSuccess": "提示词描述更新成功",
     "descriptionUpdateFailed": "更新提示词描述失败",
+    "customPromptEmptyState": "当前还没有服务器级自定义提示词",
+    "customPromptSaveSuccess": "服务器自定义提示词保存成功",
+    "customPromptSaveFailed": "保存服务器自定义提示词失败",
     "restoreDefault": "恢复默认值",
     "restoreDefaultSuccess": "提示词描述已恢复为默认值",
     "restoreDefaultFailed": "恢复默认提示词描述失败"

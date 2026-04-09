@@ -1,4 +1,6 @@
-import { apiDelete, apiPost, apiPut } from '../utils/fetchInterceptor';
+import type { ServerConfig } from '../types';
+import { buildPromptConfigs, ServerCustomPromptDraft } from '../utils/serverPromptConfigs';
+import { apiDelete, apiGet, apiPost, apiPut } from '../utils/fetchInterceptor';
 
 export interface PromptCallRequest {
   promptName: string;
@@ -170,6 +172,45 @@ export const resetPromptDescription = async (
     };
   } catch (error) {
     console.error('Error resetting prompt description', { serverName, promptName, error });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+};
+
+export const saveServerCustomPrompts = async (
+  serverName: string,
+  customPrompts: ServerCustomPromptDraft[],
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const encodedServerName = encodeURIComponent(serverName);
+    const serverResponse = await apiGet<{
+      name: string;
+      config?: ServerConfig;
+    }>(`/servers/${encodedServerName}`);
+
+    if (!serverResponse.success || !serverResponse.data) {
+      return {
+        success: false,
+        error: serverResponse.message || 'Failed to load server configuration',
+      };
+    }
+
+    const currentConfig = serverResponse.data.config || {};
+    const response = await apiPut(`/servers/${encodedServerName}`, {
+      config: {
+        ...currentConfig,
+        prompts: buildPromptConfigs(customPrompts, currentConfig.prompts),
+      },
+    });
+
+    return {
+      success: response.success,
+      error: response.success ? undefined : response.message,
+    };
+  } catch (error) {
+    console.error('Error saving server custom prompts', { serverName, error });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

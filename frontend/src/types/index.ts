@@ -333,14 +333,6 @@ export interface ServerFormData {
     tokenEndpoint?: string;
     resource?: string;
   };
-  customPrompts?: Array<{
-    name: string;
-    title?: string;
-    description?: string;
-    template: string;
-    enabled?: boolean;
-    arguments?: PromptArgument[];
-  }>;
   // OpenAPI specific fields
   openapi?: {
     url?: string;

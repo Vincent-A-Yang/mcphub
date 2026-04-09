@@ -25,11 +25,6 @@
     "checking": "Checking for updates..."
   },
   "profile": {
-    "viewProfile": "View profile",
-    "userCenter": "User Center"
-  },
-  "sponsor": {
-    "label": "Sponsor",
     "title": "Support the Project",
     "rewardAlt": "Reward QR Code",
     "supportMessage": "Support the development of MCPHub by buying me a coffee!",
@@ -595,6 +590,9 @@
     "runPromptWithName": "Get Prompt: {{name}}",
     "descriptionUpdateSuccess": "Prompt description updated successfully",
     "descriptionUpdateFailed": "Failed to update prompt description",
+    "customPromptEmptyState": "No server custom prompts configured yet",
+    "customPromptSaveSuccess": "Server custom prompts saved successfully",
+    "customPromptSaveFailed": "Failed to save server custom prompts",
     "restoreDefault": "Restore default",
     "restoreDefaultSuccess": "Prompt description restored to default",
     "restoreDefaultFailed": "Failed to restore the default prompt description"

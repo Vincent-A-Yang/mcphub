@@ -7,6 +7,7 @@ import ToolCard from '@/components/ui/ToolCard';
 import PromptCard from '@/components/ui/PromptCard';
 import ResourceCard from '@/components/ui/ResourceCard';
 import DeleteDialog from '@/components/ui/DeleteDialog';
+import ServerPromptManager from '@/components/ServerPromptManager';
 import { useToast } from '@/contexts/ToastContext';
 import { useSettingsData } from '@/hooks/useSettingsData';
 
@@ -538,24 +539,25 @@ const ServerCard = ({
           </div>
         )}
 
-        {expandedTab === 'prompts' && server.prompts && (
+        {expandedTab === 'prompts' && (
           <div className="px-4 pb-2">
-            <h6
-              className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}
-            >
+            <h6 className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}>
               {t('server.prompts')}
             </h6>
-            <div className="space-y-4">
-              {server.prompts.map((prompt, index) => (
-                <PromptCard
-                  key={index}
-                  server={server.name}
-                  prompt={prompt}
-                  onToggle={handlePromptToggle}
-                  onDescriptionUpdate={handlePromptDescriptionUpdate}
-                />
-              ))}
-            </div>
+            <ServerPromptManager server={server} onRefresh={onRefresh} />
+            {server.prompts && server.prompts.length > 0 && (
+              <div className="space-y-4">
+                {server.prompts.map((prompt, index) => (
+                  <PromptCard
+                    key={index}
+                    server={server.name}
+                    prompt={prompt}
+                    onToggle={handlePromptToggle}
+                    onDescriptionUpdate={handlePromptDescriptionUpdate}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
