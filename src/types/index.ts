@@ -318,7 +318,7 @@ export interface ServerConfig {
   enableKeepAlive?: boolean; // Enable keep-alive for this server (requires global enable as well)
   keepAliveInterval?: number; // Keep-alive ping interval in milliseconds (default: 60000ms for SSE servers)
   tools?: Record<string, { enabled: boolean; description?: string }>; // Tool-specific configurations with enable/disable state and custom descriptions
-  prompts?: Record<string, { enabled: boolean; description?: string }>; // Prompt-specific configurations with enable/disable state and custom descriptions
+  prompts?: Record<string, ServerPromptConfig>; // Prompt-specific overrides and optional local prompt templates
   resources?: Record<string, { enabled: boolean; description?: string }>; // Resource-specific configurations with enable/disable state and custom descriptions
   options?: Partial<Pick<RequestOptions, 'timeout' | 'resetTimeoutOnProgress' | 'maxTotalTimeout'>>; // MCP request options configuration
   // Proxychains4 proxy configuration for STDIO servers (Linux/macOS only, Windows not supported)
@@ -459,6 +459,14 @@ export interface PromptArgument {
   title?: string; // Title of the argument
   description?: string; // Brief description of the argument
   required?: boolean; // Whether the argument is required
+}
+
+export interface ServerPromptConfig {
+  enabled: boolean; // Whether the prompt is enabled
+  description?: string; // Custom or local prompt description
+  title?: string; // Optional custom prompt title
+  template?: string; // Local prompt template body with {{parameter}} placeholders
+  arguments?: PromptArgument[]; // Input argument definitions for local prompts
 }
 
 // Resource exposed by a connected MCP server

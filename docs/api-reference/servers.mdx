@@ -242,6 +242,38 @@ Updates the system-wide configuration settings.
   ```
   - All fields are optional. Only provided fields will be updated.
 
+### Server-Scoped Custom Prompts
+
+Server definitions can now include local prompt templates under `config.prompts`. Each custom prompt is exposed through the server namespace and behaves like a normal MCP prompt when listed or retrieved.
+
+```json
+{
+  "config": {
+    "prompts": {
+      "draft_reply": {
+        "enabled": true,
+        "title": "Draft reply",
+        "description": "Create a reusable draft reply prompt for this server",
+        "template": "Reply to {{customer}} about {{topic}}",
+        "arguments": [
+          {
+            "name": "customer",
+            "required": true
+          },
+          {
+            "name": "topic"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+- Custom prompt keys may be stored as local names such as `draft_reply`.
+- MCPHub exposes them with the server prefix, for example `support-server::draft_reply`.
+- Existing prompt enable/disable and description override behavior still applies to upstream prompts.
+
 ---
 
 ### Get Settings

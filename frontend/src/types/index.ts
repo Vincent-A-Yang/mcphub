@@ -122,6 +122,14 @@ export interface PromptArgument {
   required?: boolean;
 }
 
+export interface ServerPromptConfig {
+  enabled: boolean;
+  description?: string;
+  title?: string;
+  template?: string;
+  arguments?: PromptArgument[];
+}
+
 // Built-in prompt defined via configuration
 export interface BuiltinPrompt {
   id: string;
@@ -169,7 +177,7 @@ export interface ServerConfig {
   enableKeepAlive?: boolean; // Enable keep-alive for this server (requires global enable as well)
   keepAliveInterval?: number; // Keep-alive ping interval in milliseconds (default: 60000ms)
   tools?: Record<string, { enabled: boolean; description?: string }>; // Tool-specific configurations with enable/disable state and custom descriptions
-  prompts?: Record<string, { enabled: boolean; description?: string }>; // Prompt-specific configurations with enable/disable state and custom descriptions
+  prompts?: Record<string, ServerPromptConfig>; // Prompt-specific overrides and optional local prompt templates
   options?: {
     timeout?: number; // Request timeout in milliseconds
     resetTimeoutOnProgress?: boolean; // Reset timeout on progress notifications
@@ -325,6 +333,14 @@ export interface ServerFormData {
     tokenEndpoint?: string;
     resource?: string;
   };
+  customPrompts?: Array<{
+    name: string;
+    title?: string;
+    description?: string;
+    template: string;
+    enabled?: boolean;
+    arguments?: PromptArgument[];
+  }>;
   // OpenAPI specific fields
   openapi?: {
     url?: string;
@@ -652,7 +668,7 @@ export interface TemplateServerConfig {
   enableKeepAlive?: boolean;
   keepAliveInterval?: number;
   tools?: Record<string, { enabled: boolean; description?: string }>;
-  prompts?: Record<string, { enabled: boolean; description?: string }>;
+  prompts?: Record<string, ServerPromptConfig>;
   resources?: Record<string, { enabled: boolean; description?: string }>;
   options?: ServerConfig['options'];
   proxy?: ProxychainsConfig;

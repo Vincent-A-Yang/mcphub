@@ -254,6 +254,32 @@ describe('serverController - resetPromptDescription', () => {
       },
     });
   });
+
+  it('preserves custom prompt metadata when clearing only the description override', async () => {
+    mockServerDao.findById.mockResolvedValueOnce({
+      name: 'test-server',
+      prompts: {
+        'test-server::prompt': {
+          enabled: true,
+          description: 'Custom prompt description',
+          title: 'Draft reply',
+          template: 'Reply to {{customer}}',
+          arguments: [{ name: 'customer', required: true }],
+        },
+      },
+    });
+
+    await resetPromptDescription(mockRequest as Request, mockResponse as Response);
+
+    expect(mockServerDao.updatePrompts).toHaveBeenCalledWith('test-server', {
+      'test-server::prompt': {
+        enabled: true,
+        title: 'Draft reply',
+        template: 'Reply to {{customer}}',
+        arguments: [{ name: 'customer', required: true }],
+      },
+    });
+  });
 });
 
 describe('serverController - resetResourceDescription', () => {

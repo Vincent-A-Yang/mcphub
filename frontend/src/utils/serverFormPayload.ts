@@ -1,4 +1,4 @@
-import type { EnvVar, ServerConfig, ServerFormData } from '../types';
+import type { EnvVar, ServerConfig, ServerFormData, ServerPromptConfig } from '../types';
 
 type ServerType = NonNullable<ServerConfig['type']>;
 
@@ -7,6 +7,7 @@ interface BuildServerPayloadInput {
   serverType: ServerType;
   envVars: EnvVar[];
   headerVars: EnvVar[];
+  existingPromptConfigs?: ServerConfig['prompts'];
 }
 
 const buildKeyValueRecord = (vars: EnvVar[]): Record<string, string> => {
@@ -138,11 +139,44 @@ const buildOpenApiConfig = (formData: ServerFormData): NonNullable<ServerConfig[
   return openapi;
 };
 
+const buildPromptConfigs = (
+  customPrompts: NonNullable<ServerFormData['customPrompts']> = [],
+  existingPromptConfigs?: ServerConfig['prompts'],
+): Record<string, ServerPromptConfig> | undefined => {
+  const nextPromptConfigs: Record<string, ServerPromptConfig> = {};
+
+  Object.entries(existingPromptConfigs || {}).forEach(([key, promptConfig]) => {
+    if (!promptConfig?.template) {
+      nextPromptConfigs[key] = promptConfig;
+    }
+  });
+
+  customPrompts.forEach((promptConfig) => {
+    const name = promptConfig.name.trim();
+    const template = promptConfig.template.trim();
+
+    if (!name || !template) {
+      return;
+    }
+
+    nextPromptConfigs[name] = {
+      enabled: promptConfig.enabled !== false,
+      title: promptConfig.title?.trim() || undefined,
+      description: promptConfig.description?.trim() || undefined,
+      template,
+      arguments: promptConfig.arguments?.filter((arg) => arg.name.trim()) || undefined,
+    };
+  });
+
+  return Object.keys(nextPromptConfigs).length > 0 ? nextPromptConfigs : undefined;
+};
+
 export const buildServerPayload = ({
   formData,
   serverType,
   envVars,
   headerVars,
+  existingPromptConfigs,
 }: BuildServerPayloadInput) => {
   const env = buildKeyValueRecord(envVars);
   const headers = buildKeyValueRecord(headerVars);
@@ -153,6 +187,7 @@ export const buildServerPayload = ({
     type: serverType,
     description,
     options,
+    prompts: buildPromptConfigs(formData.customPrompts, existingPromptConfigs),
   };
 
   if (serverType === 'openapi') {

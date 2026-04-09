@@ -1,5 +1,6 @@
 import { ServerDao, ServerConfigWithName, PaginatedResult } from './index.js';
 import { ServerRepository } from '../db/repositories/ServerRepository.js';
+import { ServerPromptConfig } from '../types/index.js';
 
 /**
  * Database-backed implementation of ServerDao
@@ -172,7 +173,7 @@ export class ServerDaoDbImpl implements ServerDao {
 
   async updatePrompts(
     name: string,
-    prompts: Record<string, { enabled: boolean; description?: string }>,
+    prompts: Record<string, ServerPromptConfig>,
   ): Promise<boolean> {
     const result = await this.update(name, { prompts });
     return result !== null;
@@ -209,7 +210,7 @@ export class ServerDaoDbImpl implements ServerDao {
     enableKeepAlive?: boolean;
     keepAliveInterval?: number;
     tools?: Record<string, { enabled: boolean; description?: string }>;
-    prompts?: Record<string, { enabled: boolean; description?: string }>;
+    prompts?: Record<string, ServerPromptConfig>;
     resources?: Record<string, { enabled: boolean; description?: string }>;
     options?: Record<string, any>;
     oauth?: Record<string, any>;

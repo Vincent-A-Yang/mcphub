@@ -1,4 +1,4 @@
-import { ServerConfig } from '../types/index.js';
+import { ServerConfig, ServerPromptConfig } from '../types/index.js';
 import { BaseDao } from './base/BaseDao.js';
 import { JsonFileBaseDao } from './base/JsonFileBaseDao.js';
 
@@ -60,7 +60,7 @@ export interface ServerDao extends BaseDao<ServerConfigWithName, string> {
    */
   updatePrompts(
     name: string,
-    prompts: Record<string, { enabled: boolean; description?: string }>,
+    prompts: Record<string, ServerPromptConfig>,
   ): Promise<boolean>;
 
   /**
@@ -290,7 +290,7 @@ export class ServerDaoImpl extends JsonFileBaseDao implements ServerDao {
 
   async updatePrompts(
     name: string,
-    prompts: Record<string, { enabled: boolean; description?: string }>,
+    prompts: Record<string, ServerPromptConfig>,
   ): Promise<boolean> {
     const result = await this.update(name, { prompts });
     return result !== null;

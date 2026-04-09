@@ -7,6 +7,7 @@ import {
   BatchCreateServersResponse,
   BatchServerResult,
   ServerConfig,
+  ServerPromptConfig,
   ServerInfo,
 } from '../types/index.js';
 import {
@@ -20,7 +21,7 @@ import {
   toggleServerStatus,
   reconnectServer,
 } from '../services/mcpService.js';
-import { loadSettings } from '../config/index.js';
+import { loadSettings, getNameSeparator } from '../config/index.js';
 import { syncAllServerToolsEmbeddings } from '../services/vectorSearchService.js';
 import { createSafeJSON } from '../utils/serialization.js';
 import { cloneDefaultOAuthServerConfig } from '../constants/oauthServerDefaults.js';
@@ -30,6 +31,30 @@ import { UserContextService } from '../services/userContextService.js';
 import { normalizeServerConfigForPersistence } from '../utils/serverConfigPersistence.js';
 
 type DescribableConfig = Record<string, { enabled: boolean; description?: string }>;
+
+type PromptConfigMap = Record<string, ServerPromptConfig>;
+
+const normalizePromptConfigKey = (serverName: string, promptName: string): string => {
+  const prefix = `${serverName}${getNameSeparator()}`;
+  return promptName.startsWith(prefix) ? promptName.substring(prefix.length) : promptName;
+};
+
+const resolvePromptConfigKey = (
+  serverName: string,
+  prompts: PromptConfigMap,
+  promptName: string,
+): string => {
+  if (Object.prototype.hasOwnProperty.call(prompts, promptName)) {
+    return promptName;
+  }
+
+  const normalizedPromptName = normalizePromptConfigKey(serverName, promptName);
+  if (Object.prototype.hasOwnProperty.call(prompts, normalizedPromptName)) {
+    return normalizedPromptName;
+  }
+
+  return normalizedPromptName;
+};
 
 const clearDescriptionOverride = (
   items: DescribableConfig,
@@ -43,6 +68,11 @@ const clearDescriptionOverride = (
   }
 
   const { description: _description, ...remainingConfig } = itemConfig;
+
+  if (Object.keys(remainingConfig).some((key) => key !== 'enabled')) {
+    nextItems[itemName] = remainingConfig;
+    return nextItems;
+  }
 
   if (remainingConfig.enabled === false) {
     nextItems[itemName] = { enabled: false };
@@ -1572,7 +1602,8 @@ export const togglePrompt = async (req: Request, res: Response): Promise<void> =
     const prompts = server.prompts || {};
 
     // Set the prompt's enabled state (preserve existing description if any)
-    prompts[promptName] = { ...prompts[promptName], enabled };
+    const promptConfigKey = resolvePromptConfigKey(serverName, prompts, promptName);
+    prompts[promptConfigKey] = { ...prompts[promptConfigKey], enabled };
 
     // Update via DAO (supports both file and database modes)
     const result = await serverDao.updatePrompts(serverName, prompts);
@@ -1639,10 +1670,11 @@ export const updatePromptDescription = async (req: Request, res: Response): Prom
     const prompts = server.prompts || {};
 
     // Set the prompt's description
-    if (!prompts[promptName]) {
-      prompts[promptName] = { enabled: true };
+    const promptConfigKey = resolvePromptConfigKey(serverName, prompts, promptName);
+    if (!prompts[promptConfigKey]) {
+      prompts[promptConfigKey] = { enabled: true };
     }
-    prompts[promptName].description = description;
+    prompts[promptConfigKey].description = description;
 
     // Update via DAO (supports both file and database modes)
     const result = await serverDao.updatePrompts(serverName, prompts);
@@ -1694,7 +1726,8 @@ export const resetPromptDescription = async (req: Request, res: Response): Promi
       return;
     }
 
-    const prompts = clearDescriptionOverride(server.prompts || {}, promptName);
+    const promptConfigKey = resolvePromptConfigKey(serverName, server.prompts || {}, promptName);
+    const prompts = clearDescriptionOverride(server.prompts || {}, promptConfigKey);
     const result = await serverDao.updatePrompts(serverName, prompts);
 
     if (!result) {

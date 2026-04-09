@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ServerPromptConfig } from '../../types/index.js';
 
 /**
  * Server configuration entity for database storage
@@ -54,7 +55,7 @@ export class Server {
   tools?: Record<string, { enabled: boolean; description?: string }>;
 
   @Column({ type: 'simple-json', nullable: true })
-  prompts?: Record<string, { enabled: boolean; description?: string }>;
+  prompts?: Record<string, ServerPromptConfig>;
 
   @Column({ type: 'simple-json', nullable: true })
   resources?: Record<string, { enabled: boolean; description?: string }>;

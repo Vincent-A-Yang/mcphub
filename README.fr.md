@@ -15,6 +15,7 @@ MCPHub facilite la gestion et la mise à l'échelle de plusieurs serveurs MCP (M
 
 - **Gestion centralisée** - Surveillez et contrôlez tous les serveurs MCP depuis un tableau de bord unifié
 - **Routage flexible** - Accédez à tous les serveurs, groupes spécifiques ou serveurs individuels via HTTP/SSE
+- **Prompts personnalisés par serveur** - Attachez des modèles de prompts réutilisables directement à chaque serveur MCP
 - **Routage intelligent** - Découverte d'outils propulsée par IA utilisant la recherche sémantique vectorielle ([En savoir plus](https://docs.mcphub.app/features/smart-routing))
 - **Configuration à chaud** - Ajoutez, supprimez ou mettez à jour les serveurs sans temps d'arrêt
 - **Support OAuth 2.0** - Modes client et serveur pour une authentification sécurisée ([En savoir plus](https://docs.mcphub.app/features/oauth))

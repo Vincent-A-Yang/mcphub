@@ -42,6 +42,7 @@ jest.mock('../../src/services/services.js', () => ({
 
 const mockGetBuiltinPromptDao = {
   findEnabled: jest.fn(),
+  findByName: jest.fn(),
 };
 
 const mockGetBuiltinResourceDao = {
@@ -50,6 +51,8 @@ const mockGetBuiltinResourceDao = {
 
 const mockGetServerDao = {
   findById: jest.fn(),
+  findAll: jest.fn(),
+  findAllPaginated: jest.fn(),
 };
 
 jest.mock('../../src/dao/index.js', () => ({
@@ -75,6 +78,8 @@ import {
   filterPromptsByGroup,
   filterResourceTemplatesByGroup,
   filterResourcesByGroup,
+  getServersInfo,
+  handleGetPromptRequest,
   handleListPromptsRequest,
   handleListResourcesRequest,
 } from '../../src/services/mcpService.js';
@@ -83,7 +88,17 @@ describe('mcpService handleListPromptsRequest', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetServerDao.findById.mockResolvedValue(null);
+    mockGetServerDao.findAll.mockResolvedValue([]);
+    mockGetServerDao.findAllPaginated.mockResolvedValue({
+      data: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+    });
     mockGetBuiltinResourceDao.findEnabled.mockResolvedValue([]);
+    mockGetBuiltinPromptDao.findEnabled.mockResolvedValue([]);
+    mockGetBuiltinPromptDao.findByName.mockResolvedValue(null);
   });
 
   it('should return schema-safe prompt fields for built-in prompts', async () => {
@@ -161,6 +176,86 @@ describe('mcpService handleListPromptsRequest', () => {
     ] as any);
 
     expect(result).toEqual([{ name: 'server-a::draft_prompt', description: 'allowed' }]);
+  });
+
+  it('should expose server custom prompts in server info even before upstream prompts are loaded', async () => {
+    mockGetServerDao.findAll.mockResolvedValue([
+      {
+        name: 'server-a',
+        enabled: true,
+        prompts: {
+          'server-a::draft_reply': {
+            enabled: true,
+            title: 'Draft reply',
+            description: 'Generate a draft reply',
+            template: 'Reply to {{customer}} about {{topic}}',
+            arguments: [
+              { name: 'customer', required: true },
+              { name: 'topic' },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const result = await getServersInfo();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].prompts).toEqual([
+      {
+        name: 'server-a::draft_reply',
+        title: 'Draft reply',
+        description: 'Generate a draft reply',
+        arguments: [
+          { name: 'customer', required: true },
+          { name: 'topic' },
+        ],
+        enabled: true,
+      },
+    ]);
+  });
+
+  it('should resolve server custom prompts before calling upstream MCP prompts', async () => {
+    mockGetServerDao.findById.mockResolvedValue({
+      name: 'server-a',
+      prompts: {
+        'server-a::draft_reply': {
+          enabled: true,
+          title: 'Draft reply',
+          description: 'Generate a draft reply',
+          template: 'Reply to {{customer}} about {{topic}}',
+          arguments: [
+            { name: 'customer', required: true },
+            { name: 'topic' },
+          ],
+        },
+      },
+    });
+
+    const result = await handleGetPromptRequest(
+      {
+        params: {
+          name: 'server-a::draft_reply',
+          arguments: {
+            customer: 'Ada',
+            topic: 'deployment',
+          },
+        },
+      },
+      { server: 'server-a' },
+    );
+
+    expect(result).toEqual({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: 'Reply to Ada about deployment',
+          },
+        },
+      ],
+    });
   });
 
   it('should filter resources by group capability selection', async () => {

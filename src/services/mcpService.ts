@@ -27,6 +27,7 @@ import {
   Tool,
   ProxychainsConfig,
   IGroupServerConfig,
+  ServerPromptConfig,
 } from '../types/index.js';
 import { expandEnvVars, replaceEnvVars, getNameSeparator } from '../config/index.js';
 import config from '../config/index.js';
@@ -305,6 +306,138 @@ const normalizePromptForList = (prompt: {
     description: prompt.description || '',
     arguments: Array.isArray(prompt.arguments) ? prompt.arguments : [],
   };
+};
+
+const getFullPromptName = (serverName: string, promptName: string) => {
+  const prefix = `${serverName}${getNameSeparator()}`;
+  return promptName.startsWith(prefix) ? promptName : `${prefix}${promptName}`;
+};
+
+const stripServerPromptPrefix = (serverName: string, promptName: string) => {
+  const prefix = `${serverName}${getNameSeparator()}`;
+  return promptName.startsWith(prefix) ? promptName.substring(prefix.length) : promptName;
+};
+
+type ServerCustomPromptEntry = {
+  key: string;
+  fullName: string;
+  normalizedName: string;
+  config: ServerPromptConfig & { template: string };
+};
+
+const isServerCustomPromptConfig = (
+  promptConfig?: ServerPromptConfig | null,
+): promptConfig is ServerPromptConfig & { template: string } =>
+  typeof promptConfig?.template === 'string' && promptConfig.template.trim().length > 0;
+
+const getServerPromptConfigEntry = (
+  serverConfig: ServerConfig | undefined,
+  serverName: string,
+  promptName: string,
+): {
+  key: string;
+  fullName: string;
+  normalizedName: string;
+  config: ServerPromptConfig;
+} | null => {
+  const prompts = serverConfig?.prompts;
+  if (!prompts) {
+    return null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(prompts, promptName)) {
+    return {
+      key: promptName,
+      fullName: getFullPromptName(serverName, promptName),
+      normalizedName: stripServerPromptPrefix(serverName, promptName),
+      config: prompts[promptName],
+    };
+  }
+
+  const normalizedPromptName = stripServerPromptPrefix(serverName, promptName);
+  if (Object.prototype.hasOwnProperty.call(prompts, normalizedPromptName)) {
+    return {
+      key: normalizedPromptName,
+      fullName: getFullPromptName(serverName, normalizedPromptName),
+      normalizedName: normalizedPromptName,
+      config: prompts[normalizedPromptName],
+    };
+  }
+
+  return null;
+};
+
+const getServerCustomPromptEntries = (
+  serverConfig: ServerConfig | undefined,
+  serverName: string,
+): ServerCustomPromptEntry[] => {
+  if (!serverConfig?.prompts) {
+    return [];
+  }
+
+  return Object.entries(serverConfig.prompts)
+    .filter(([, promptConfig]) => isServerCustomPromptConfig(promptConfig))
+    .map(([key, promptConfig]) => ({
+      key,
+      fullName: getFullPromptName(serverName, key),
+      normalizedName: stripServerPromptPrefix(serverName, key),
+      config: promptConfig as ServerPromptConfig & { template: string },
+    }));
+};
+
+const buildServerCustomPrompt = (entry: ServerCustomPromptEntry) => ({
+  ...normalizePromptForList({
+    name: entry.fullName,
+    title: entry.config.title || entry.normalizedName,
+    description: entry.config.description,
+    arguments: entry.config.arguments,
+  }),
+  enabled: entry.config.enabled !== false,
+});
+
+const renderPromptTemplate = (
+  template: string,
+  promptArgs?: Record<string, unknown>,
+): string => {
+  let content = template;
+  if (promptArgs) {
+    for (const [key, value] of Object.entries(promptArgs)) {
+      content = content.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+    }
+  }
+
+  return content;
+};
+
+const findServerCustomPrompt = async (
+  promptName: string,
+  serverName?: string,
+): Promise<ServerCustomPromptEntry | null> => {
+  if (serverName) {
+    const serverConfig = await getServerDao().findById(serverName);
+    if (!serverConfig || serverConfig.enabled === false) {
+      return null;
+    }
+
+    const promptEntry = getServerPromptConfigEntry(serverConfig, serverName, promptName);
+    return promptEntry && isServerCustomPromptConfig(promptEntry.config)
+      ? { ...promptEntry, config: promptEntry.config }
+      : null;
+  }
+
+  const serverConfigs = await getServerDao().findAll();
+  for (const candidateServer of serverConfigs) {
+    if (candidateServer.enabled === false) {
+      continue;
+    }
+
+    const promptEntry = getServerPromptConfigEntry(candidateServer, candidateServer.name, promptName);
+    if (promptEntry && isServerCustomPromptConfig(promptEntry.config)) {
+      return { ...promptEntry, config: promptEntry.config };
+    }
+  }
+
+  return null;
 };
 
 // Normalize resource payload to avoid nullable DB fields violating MCP schema
@@ -1292,13 +1425,21 @@ export const getServersInfo = async (
         };
       });
 
-      const promptsWithEnabled = prompts.map((prompt) => {
-        const promptConfig = serverConfig?.prompts?.[prompt.name];
-        return {
+      const promptMap = new Map<string, any>();
+
+      prompts.forEach((prompt) => {
+        const promptConfigEntry = getServerPromptConfigEntry(serverConfig, name, prompt.name);
+        promptMap.set(prompt.name, {
           ...prompt,
-          description: promptConfig?.description || prompt.description, // Use custom description if available
-          enabled: promptConfig?.enabled !== false, // Default to true if not explicitly disabled
-        };
+          title: promptConfigEntry?.config.title || prompt.title,
+          description: promptConfigEntry?.config.description || prompt.description,
+          arguments: promptConfigEntry?.config.arguments || prompt.arguments,
+          enabled: promptConfigEntry?.config.enabled !== false,
+        });
+      });
+
+      getServerCustomPromptEntries(serverConfig, name).forEach((promptEntry) => {
+        promptMap.set(promptEntry.fullName, buildServerCustomPrompt(promptEntry));
       });
 
       return {
@@ -1306,7 +1447,7 @@ export const getServersInfo = async (
         status,
         error,
         tools: toolsWithEnabled,
-        prompts: promptsWithEnabled,
+        prompts: Array.from(promptMap.values()),
         resources,
         createTime,
         enabled,
@@ -1961,18 +2102,27 @@ export const handleGetPromptRequest = async (request: any, extra: any) => {
     // Check built-in prompts first
     const builtinPrompt = await getBuiltinPromptDao().findByName(name);
     if (builtinPrompt && builtinPrompt.enabled !== false) {
-      // Perform {{param}} template substitution
-      let content = builtinPrompt.template;
-      if (promptArgs) {
-        for (const [key, value] of Object.entries(promptArgs)) {
-          content = content.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
-        }
-      }
+      const content = renderPromptTemplate(builtinPrompt.template, promptArgs);
       return {
         messages: [
           {
             role: 'user',
             content: { type: 'text', text: content },
+          },
+        ],
+      };
+    }
+
+    const customPromptEntry = await findServerCustomPrompt(name, extra?.server);
+    if (customPromptEntry && customPromptEntry.config.enabled !== false) {
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: renderPromptTemplate(customPromptEntry.config.template, promptArgs),
+            },
           },
         ],
       };
@@ -2047,39 +2197,75 @@ export const handleListPromptsRequest = async (_: any, extra: any) => {
   );
 
   const { filteredServerInfos, serverConfigsByName } = await getFilteredServerInfosForGroup(group);
+  const runtimeServerInfosByName = new Map(
+    filteredServerInfos.map((serverInfo) => [serverInfo.name, serverInfo] as const),
+  );
+  const allServerConfigs = await getServerDao().findAll();
+  const eligibleServerConfigs = allServerConfigs.filter((serverConfig) => {
+    if (serverConfig.enabled === false) {
+      return false;
+    }
 
-  for (const serverInfo of filteredServerInfos) {
-    if (serverInfo.prompts && serverInfo.prompts.length > 0) {
-      // Filter prompts based on server configuration
-      const serverConfig = await getServerDao().findById(serverInfo.name);
+    if (!group) {
+      return true;
+    }
 
-      let enabledPrompts = serverInfo.prompts;
-      if (serverConfig && serverConfig.prompts) {
-        enabledPrompts = serverInfo.prompts.filter((prompt: any) => {
-          const promptConfig = serverConfig.prompts?.[prompt.name];
-          // If prompt is not in config, it's enabled by default
-          return promptConfig?.enabled !== false;
-        });
-      }
+    if (serverConfigsByName.size === 0) {
+      return serverConfig.name === group;
+    }
+
+    return serverConfigsByName.has(serverConfig.name);
+  });
+
+  for (const serverConfig of eligibleServerConfigs) {
+    const promptMap = new Map<string, any>();
+    const serverInfo = runtimeServerInfosByName.get(serverConfig.name);
+
+    if (serverInfo?.prompts && serverInfo.prompts.length > 0) {
+      let enabledPrompts = serverInfo.prompts.filter((prompt: any) => {
+        const promptConfigEntry = getServerPromptConfigEntry(serverConfig, serverConfig.name, prompt.name);
+        return promptConfigEntry?.config.enabled !== false;
+      });
 
       enabledPrompts = await filterPromptsByGroup(
         group,
-        serverInfo.name,
+        serverConfig.name,
         enabledPrompts,
-        serverConfigsByName.get(serverInfo.name),
+        serverConfigsByName.get(serverConfig.name),
       );
 
-      // Apply custom descriptions from server configuration
-      const promptsWithCustomDescriptions = enabledPrompts.map((prompt: any) => {
-        const promptConfig = serverConfig?.prompts?.[prompt.name];
-        return normalizePromptForList({
+      enabledPrompts.forEach((prompt: any) => {
+        const promptConfigEntry = getServerPromptConfigEntry(serverConfig, serverConfig.name, prompt.name);
+        promptMap.set(prompt.name, normalizePromptForList({
           ...prompt,
-          description: promptConfig?.description || prompt.description, // Use custom description if available
-        });
+          title: promptConfigEntry?.config.title || prompt.title,
+          description: promptConfigEntry?.config.description || prompt.description,
+          arguments: promptConfigEntry?.config.arguments || prompt.arguments,
+        }));
       });
-
-      allPrompts.push(...promptsWithCustomDescriptions);
     }
+
+    const customPromptEntries = getServerCustomPromptEntries(serverConfig, serverConfig.name).filter(
+      (promptEntry) => promptEntry.config.enabled !== false,
+    );
+    const allowedCustomPromptNames = new Set(
+      (
+        await filterPromptsByGroup(
+          group,
+          serverConfig.name,
+          customPromptEntries.map((promptEntry) => ({ name: promptEntry.fullName })),
+          serverConfigsByName.get(serverConfig.name),
+        )
+      ).map((prompt) => prompt.name),
+    );
+
+    customPromptEntries.forEach((promptEntry) => {
+      if (allowedCustomPromptNames.has(promptEntry.fullName)) {
+        promptMap.set(promptEntry.fullName, buildServerCustomPrompt(promptEntry));
+      }
+    });
+
+    allPrompts.push(...Array.from(promptMap.values()));
   }
 
   return {
@@ -2328,10 +2514,8 @@ async function filterToolsByGroup(
   return tools;
 }
 
-const normalizePromptNameForGroup = (serverName: string, promptName: string) => {
-  const prefix = `${serverName}${getNameSeparator()}`;
-  return promptName.startsWith(prefix) ? promptName.substring(prefix.length) : promptName;
-};
+const normalizePromptNameForGroup = (serverName: string, promptName: string) =>
+  stripServerPromptPrefix(serverName, promptName);
 
 export async function filterPromptsByGroup(
   group: string | undefined,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Server, EnvVar, ServerFormData } from '@/types';
+import { Server, EnvVar, PromptArgument, ServerFormData } from '@/types';
+import { useSettingsData } from '@/hooks/useSettingsData';
 import { buildServerPayload } from '../utils/serverFormPayload';
 
 interface ServerFormProps {
@@ -19,6 +20,7 @@ const ServerForm = ({
   formError = null,
 }: ServerFormProps) => {
   const { t } = useTranslation();
+  const { nameSeparator } = useSettingsData();
 
   // Determine the initial server type from the initialData
   const getInitialServerType = () => {
@@ -55,6 +57,29 @@ const ServerForm = ({
       tokenEndpoint: oauth?.tokenEndpoint || '',
       resource: oauth?.resource || '',
     };
+  };
+
+  const getInitialCustomPrompts = (
+    data: Server | null,
+  ): NonNullable<ServerFormData['customPrompts']> => {
+    if (!data?.config?.prompts) {
+      return [];
+    }
+
+    const promptPrefix = `${data.name}${nameSeparator}`;
+
+    return Object.entries(data.config.prompts)
+      .filter(([, promptConfig]) => typeof promptConfig.template === 'string')
+      .map(([promptName, promptConfig]) => ({
+        name: promptName.startsWith(promptPrefix)
+          ? promptName.slice(promptPrefix.length)
+          : promptName,
+        title: promptConfig.title || '',
+        description: promptConfig.description || '',
+        template: promptConfig.template || '',
+        enabled: promptConfig.enabled !== false,
+        arguments: promptConfig.arguments || [],
+      }));
   };
 
   const [serverType, setServerType] = useState<'stdio' | 'sse' | 'streamable-http' | 'openapi'>(
@@ -104,6 +129,7 @@ const ServerForm = ({
       enabled: initialData?.config?.enableKeepAlive || false,
       interval: initialData?.config?.keepAliveInterval || 60000,
     },
+    customPrompts: getInitialCustomPrompts(initialData),
     // OpenAPI configuration initialization
     openapi:
       initialData && initialData.config && initialData.config.openapi
@@ -161,6 +187,7 @@ const ServerForm = ({
   const [isRequestOptionsExpanded, setIsRequestOptionsExpanded] = useState<boolean>(false);
   const [isOAuthSectionExpanded, setIsOAuthSectionExpanded] = useState<boolean>(false);
   const [isKeepAliveSectionExpanded, setIsKeepAliveSectionExpanded] = useState<boolean>(false);
+  const [isCustomPromptsExpanded, setIsCustomPromptsExpanded] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const isEdit = !!initialData;
 
@@ -225,6 +252,96 @@ const ServerForm = ({
     }));
   };
 
+  const handleCustomPromptChange = (
+    promptIndex: number,
+    field: 'name' | 'title' | 'description' | 'template' | 'enabled',
+    value: string | boolean,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: (prev.customPrompts || []).map((promptConfig, index) =>
+        index === promptIndex ? { ...promptConfig, [field]: value } : promptConfig,
+      ),
+    }));
+  };
+
+  const addCustomPrompt = () => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: [
+        ...(prev.customPrompts || []),
+        {
+          name: '',
+          title: '',
+          description: '',
+          template: '',
+          enabled: true,
+          arguments: [],
+        },
+      ],
+    }));
+    setIsCustomPromptsExpanded(true);
+  };
+
+  const removeCustomPrompt = (promptIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: (prev.customPrompts || []).filter((_, index) => index !== promptIndex),
+    }));
+  };
+
+  const addCustomPromptArgument = (promptIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: (prev.customPrompts || []).map((promptConfig, index) =>
+        index === promptIndex
+          ? {
+              ...promptConfig,
+              arguments: [
+                ...(promptConfig.arguments || []),
+                { name: '', description: '', required: false },
+              ],
+            }
+          : promptConfig,
+      ),
+    }));
+  };
+
+  const removeCustomPromptArgument = (promptIndex: number, argumentIndex: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: (prev.customPrompts || []).map((promptConfig, index) =>
+        index === promptIndex
+          ? {
+              ...promptConfig,
+              arguments: (promptConfig.arguments || []).filter((_, idx) => idx !== argumentIndex),
+            }
+          : promptConfig,
+      ),
+    }));
+  };
+
+  const handleCustomPromptArgumentChange = (
+    promptIndex: number,
+    argumentIndex: number,
+    field: keyof PromptArgument,
+    value: string | boolean,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      customPrompts: (prev.customPrompts || []).map((promptConfig, index) =>
+        index === promptIndex
+          ? {
+              ...promptConfig,
+              arguments: (promptConfig.arguments || []).map((argument, idx) =>
+                idx === argumentIndex ? { ...argument, [field]: value } : argument,
+              ),
+            }
+          : promptConfig,
+      ),
+    }));
+  };
+
   // Handle options changes
   const handleOptionsChange = (
     field: 'timeout' | 'resetTimeoutOnProgress' | 'maxTotalTimeout',
@@ -250,6 +367,7 @@ const ServerForm = ({
         serverType,
         envVars,
         headerVars,
+        existingPromptConfigs: initialData?.config?.prompts,
       });
 
       onSubmit(payload);
@@ -1116,6 +1234,208 @@ const ServerForm = ({
             </div>
           </>
         )}
+
+        <div className="mb-4">
+          <div
+            className="flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 p-3 rounded border border-gray-200"
+            onClick={() => setIsCustomPromptsExpanded(!isCustomPromptsExpanded)}
+          >
+            <div>
+              <label className="text-gray-700 text-sm font-bold">{t('server.prompts')}</label>
+              <p className="text-xs text-gray-500 mt-1">
+                {(formData.customPrompts || []).length > 0
+                  ? `${(formData.customPrompts || []).length} ${t('server.prompts').toLowerCase()}`
+                  : t('builtinPrompts.noPrompts')}
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addCustomPrompt();
+                }}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-2 rounded text-sm btn-primary"
+              >
+                + {t('builtinPrompts.add')}
+              </button>
+              <span className="text-gray-500 text-sm">{isCustomPromptsExpanded ? '▼' : '▶'}</span>
+            </div>
+          </div>
+
+          {isCustomPromptsExpanded && (
+            <div className="border border-gray-200 rounded-b p-4 bg-gray-50 border-t-0 space-y-4">
+              {(formData.customPrompts || []).length === 0 ? (
+                <div className="text-sm text-gray-500">{t('builtinPrompts.addFirst')}</div>
+              ) : (
+                (formData.customPrompts || []).map((promptConfig, promptIndex) => (
+                  <div key={promptIndex} className="border border-gray-200 rounded-lg bg-white p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-800">
+                        {promptConfig.name || `Prompt ${promptIndex + 1}`}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomPrompt(promptIndex)}
+                        className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-2 rounded text-sm btn-danger"
+                      >
+                        -
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">
+                          {t('builtinPrompts.name')}
+                        </label>
+                        <input
+                          type="text"
+                          value={promptConfig.name}
+                          onChange={(e) =>
+                            handleCustomPromptChange(promptIndex, 'name', e.target.value)
+                          }
+                          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline form-input"
+                          placeholder={t('builtinPrompts.namePlaceholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-700 text-sm font-bold mb-2">
+                          {t('builtinPrompts.title')}
+                        </label>
+                        <input
+                          type="text"
+                          value={promptConfig.title || ''}
+                          onChange={(e) =>
+                            handleCustomPromptChange(promptIndex, 'title', e.target.value)
+                          }
+                          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline form-input"
+                          placeholder={t('builtinPrompts.titlePlaceholder')}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-sm font-bold mb-2">
+                        {t('builtinPrompts.description')}
+                      </label>
+                      <input
+                        type="text"
+                        value={promptConfig.description || ''}
+                        onChange={(e) =>
+                          handleCustomPromptChange(promptIndex, 'description', e.target.value)
+                        }
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline form-input"
+                        placeholder={t('builtinPrompts.descriptionPlaceholder')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-700 text-sm font-bold mb-2">
+                        {t('builtinPrompts.template')}
+                      </label>
+                      <textarea
+                        rows={5}
+                        value={promptConfig.template}
+                        onChange={(e) =>
+                          handleCustomPromptChange(promptIndex, 'template', e.target.value)
+                        }
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline font-mono text-sm"
+                        placeholder={t('builtinPrompts.templatePlaceholder')}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">{t('builtinPrompts.templateHint')}</p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-gray-700 text-sm font-bold">
+                          {t('builtinPrompts.arguments')}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => addCustomPromptArgument(promptIndex)}
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          + {t('builtinPrompts.addArgument')}
+                        </button>
+                      </div>
+
+                      {(promptConfig.arguments || []).map((argument, argumentIndex) => (
+                        <div
+                          key={argumentIndex}
+                          className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-2 mb-2 items-center"
+                        >
+                          <input
+                            type="text"
+                            value={argument.name}
+                            onChange={(e) =>
+                              handleCustomPromptArgumentChange(
+                                promptIndex,
+                                argumentIndex,
+                                'name',
+                                e.target.value,
+                              )
+                            }
+                            className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline form-input"
+                            placeholder={t('builtinPrompts.argName')}
+                          />
+                          <input
+                            type="text"
+                            value={argument.description || ''}
+                            onChange={(e) =>
+                              handleCustomPromptArgumentChange(
+                                promptIndex,
+                                argumentIndex,
+                                'description',
+                                e.target.value,
+                              )
+                            }
+                            className="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline form-input"
+                            placeholder={t('builtinPrompts.argDescription')}
+                          />
+                          <label className="flex items-center text-sm text-gray-600 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={argument.required || false}
+                              onChange={(e) =>
+                                handleCustomPromptArgumentChange(
+                                  promptIndex,
+                                  argumentIndex,
+                                  'required',
+                                  e.target.checked,
+                                )
+                              }
+                              className="mr-2"
+                            />
+                            {t('builtinPrompts.argRequired')}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeCustomPromptArgument(promptIndex, argumentIndex)}
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-1 px-2 rounded text-sm btn-danger"
+                          >
+                            -
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <label className="flex items-center text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={promptConfig.enabled !== false}
+                        onChange={(e) =>
+                          handleCustomPromptChange(promptIndex, 'enabled', e.target.checked)
+                        }
+                        className="mr-2"
+                      />
+                      {t('builtinPrompts.enabled')}
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Request Options Configuration */}
         {serverType !== 'openapi' && (
