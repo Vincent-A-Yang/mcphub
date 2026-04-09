@@ -1,7 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Server } from '@/types';
-import { ChevronDown, ChevronRight, AlertCircle, Copy, Check, Wrench, MessageSquare, FileText } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  AlertCircle,
+  Copy,
+  Check,
+  Wrench,
+  MessageSquare,
+  FileText,
+} from 'lucide-react';
 import { StatusBadge } from '@/components/ui/Badge';
 import ToolCard from '@/components/ui/ToolCard';
 import PromptCard from '@/components/ui/PromptCard';
@@ -339,9 +348,7 @@ const ServerCard = ({
   return (
     <>
       <div className="bg-white shadow rounded-lg mb-6 page-card transition-all duration-200">
-        <div
-          className="flex justify-between items-center p-4"
-        >
+        <div className="flex justify-between items-center p-4">
           <div className="flex items-center space-x-2">
             <h2
               className={`text-xl font-semibold ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}
@@ -366,11 +373,11 @@ const ServerCard = ({
             )}
 
             {/* Tool count display */}
-            <div 
+            <div
               className={`flex items-center px-2 py-1 rounded-full text-sm cursor-pointer transition-colors ${expandedTab === 'tools' ? 'bg-blue-100 text-blue-800' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setExpandedTab(prev => prev === 'tools' ? null : 'tools');
+                setExpandedTab((prev) => (prev === 'tools' ? null : 'tools'));
               }}
             >
               <Wrench className="w-4 h-4 mr-1" />
@@ -380,30 +387,32 @@ const ServerCard = ({
             </div>
 
             {/* Prompt count display */}
-            <div 
+            <div
               className={`flex items-center px-2 py-1 rounded-full text-sm cursor-pointer transition-colors ${expandedTab === 'prompts' ? 'bg-purple-100 text-purple-800' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setExpandedTab(prev => prev === 'prompts' ? null : 'prompts');
+                setExpandedTab((prev) => (prev === 'prompts' ? null : 'prompts'));
               }}
             >
               <MessageSquare className="w-4 h-4 mr-1" />
               <span>
-                {totalPrompts === 0 ? '0' : `${enabledPrompts}/${totalPrompts}`} {t('server.prompts')}
+                {totalPrompts === 0 ? '0' : `${enabledPrompts}/${totalPrompts}`}{' '}
+                {t('server.prompts')}
               </span>
             </div>
 
             {/* Resource count display */}
-            <div 
+            <div
               className={`flex items-center px-2 py-1 rounded-full text-sm cursor-pointer transition-colors ${expandedTab === 'resources' ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
               onClick={(e) => {
                 e.stopPropagation();
-                setExpandedTab(prev => prev === 'resources' ? null : 'resources');
+                setExpandedTab((prev) => (prev === 'resources' ? null : 'resources'));
               }}
             >
               <FileText className="w-4 h-4 mr-1" />
               <span>
-                {totalResources === 0 ? '0' : `${enabledResources}/${totalResources}`} {t('nav.resources')}
+                {totalResources === 0 ? '0' : `${enabledResources}/${totalResources}`}{' '}
+                {t('nav.resources')}
               </span>
             </div>
 
@@ -520,30 +529,26 @@ const ServerCard = ({
 
         {expandedTab === 'tools' && server.tools && (
           <div className="px-4">
-            <h6
-              className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'} mb-2`}
-            >
-              {t('server.tools')}
-            </h6>
-            <div className="space-y-4">
-              {server.tools.map((tool, index) => (
-                <ToolCard
-                  key={index}
-                  server={server.name}
-                  tool={tool}
-                  onToggle={handleToolToggle}
-                  onDescriptionUpdate={handleToolDescriptionUpdate}
-                />
-              ))}
-            </div>
+            {server.tools.length === 0 ? (
+              <div className="text-sm text-gray-500 py-2">{t('cloud.noTools')}</div>
+            ) : (
+              <div className="space-y-4">
+                {server.tools.map((tool, index) => (
+                  <ToolCard
+                    key={index}
+                    server={server.name}
+                    tool={tool}
+                    onToggle={handleToolToggle}
+                    onDescriptionUpdate={handleToolDescriptionUpdate}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {expandedTab === 'prompts' && (
           <div className="px-4 pb-2">
-            <h6 className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}>
-              {t('server.prompts')}
-            </h6>
             <ServerPromptManager server={server} onRefresh={onRefresh} />
             {server.prompts && server.prompts.length > 0 && (
               <div className="space-y-4">
@@ -563,15 +568,8 @@ const ServerCard = ({
 
         {expandedTab === 'resources' && server.resources && (
           <div className="px-4 pb-2">
-            <h6
-              className={`font-medium ${server.enabled === false ? 'text-gray-600' : 'text-gray-900'}`}
-            >
-              {t('nav.resources')}
-            </h6>
             {server.resources.length === 0 ? (
-              <div className="text-sm text-gray-500 py-2">
-                {t('builtinResources.noResources')}
-              </div>
+              <div className="text-sm text-gray-500 py-2">{t('builtinResources.noResources')}</div>
             ) : (
               <div className="space-y-4">
                 {server.resources.map((resource, index) => (

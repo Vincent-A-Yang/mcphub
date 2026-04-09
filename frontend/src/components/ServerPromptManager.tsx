@@ -174,7 +174,6 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
     <div className="mb-4 rounded-lg border border-purple-100 bg-purple-50/60 p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-medium text-purple-900">{t('server.prompts')}</div>
           <div className="text-xs text-purple-700/80">
             {drafts.length > 0
               ? `${drafts.length} ${t('server.prompts').toLowerCase()}`
