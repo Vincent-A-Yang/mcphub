@@ -15,6 +15,8 @@ let nextEditableArgumentId = 0;
 
 const createPromptId = () => `prompt-draft-${++nextEditablePromptId}`;
 const createArgumentId = () => `prompt-argument-${++nextEditableArgumentId}`;
+const normalizeEditableArguments = (argumentsValue: unknown): PromptArgument[] =>
+  Array.isArray(argumentsValue) ? argumentsValue : [];
 
 export const createEditablePromptArgument = (
   argument: Partial<PromptArgument> = {},
@@ -35,7 +37,9 @@ export const createEditablePromptDraft = (
   description: draft.description || '',
   template: draft.template || '',
   enabled: draft.enabled !== false,
-  arguments: (draft.arguments || []).map((argument) => createEditablePromptArgument(argument)),
+  arguments: normalizeEditableArguments(draft.arguments).map((argument) =>
+    createEditablePromptArgument(argument),
+  ),
 });
 
 export const toEditablePromptDrafts = (

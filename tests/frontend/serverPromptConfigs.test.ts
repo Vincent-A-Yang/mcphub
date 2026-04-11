@@ -80,4 +80,31 @@ describe('serverPromptConfigs', () => {
       },
     ]);
   });
+
+  it('normalizes malformed prompt argument payloads to an empty array', () => {
+    const result = getCustomPromptDrafts(
+      {
+        prompts: {
+          draft_reply: {
+            enabled: true,
+            template: 'Reply to {{customer}}',
+            arguments: { name: 'customer', required: true } as any,
+          },
+        },
+      },
+      'support-server',
+      '::',
+    );
+
+    expect(result).toEqual([
+      {
+        name: 'draft_reply',
+        title: '',
+        description: '',
+        template: 'Reply to {{customer}}',
+        enabled: true,
+        arguments: [],
+      },
+    ]);
+  });
 });

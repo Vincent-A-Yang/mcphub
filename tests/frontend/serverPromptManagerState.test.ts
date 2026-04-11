@@ -70,4 +70,16 @@ describe('serverPromptManagerState', () => {
       },
     ]);
   });
+
+  it('tolerates malformed non-array argument payloads when building editable drafts', () => {
+    const [draft] = toEditablePromptDrafts([
+      {
+        name: 'draft_reply',
+        template: 'Reply to {{customer}}',
+        arguments: { name: 'customer', required: true } as any,
+      },
+    ]);
+
+    expect(draft.arguments).toEqual([]);
+  });
 });

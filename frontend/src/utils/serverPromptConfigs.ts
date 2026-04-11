@@ -9,6 +9,9 @@ export interface ServerCustomPromptDraft {
   arguments?: PromptArgument[];
 }
 
+const normalizePromptArguments = (argumentsValue: unknown): PromptArgument[] =>
+  Array.isArray(argumentsValue) ? argumentsValue : [];
+
 export const getCustomPromptDrafts = (
   serverConfig?: Pick<ServerConfig, 'prompts'>,
   serverName?: string,
@@ -31,7 +34,7 @@ export const getCustomPromptDrafts = (
       description: promptConfig.description || '',
       template: promptConfig.template || '',
       enabled: promptConfig.enabled !== false,
-      arguments: promptConfig.arguments || [],
+      arguments: normalizePromptArguments(promptConfig.arguments),
     }));
 };
 
@@ -61,7 +64,9 @@ export const buildPromptConfigs = (
       description: promptConfig.description?.trim() || undefined,
       template,
       arguments:
-        promptConfig.arguments?.filter((arg) => arg.name.trim()).map((arg) => ({
+        normalizePromptArguments(promptConfig.arguments)
+          .filter((arg) => arg.name.trim())
+          .map((arg) => ({
           ...arg,
           name: arg.name.trim(),
           title: arg.title?.trim() || undefined,
