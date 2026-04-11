@@ -215,6 +215,55 @@ describe('mcpService handleListPromptsRequest', () => {
     ]);
   });
 
+  it('should include server custom prompt configs in server info config payload', async () => {
+    mockGetServerDao.findAll.mockResolvedValue([
+      {
+        name: 'server-a',
+        enabled: true,
+        type: 'stdio',
+        prompts: {
+          draft_reply: {
+            enabled: true,
+            title: 'Draft reply',
+            description: 'Generate a draft reply',
+            template: 'Reply to {{customer}} about {{topic}}',
+            arguments: [
+              { name: 'customer', required: true },
+              { name: 'topic' },
+            ],
+          },
+          upstream_prompt: {
+            enabled: false,
+            description: 'Disable upstream prompt',
+          },
+        },
+      },
+    ]);
+
+    const result = await getServersInfo();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].config).toEqual({
+      type: 'stdio',
+      prompts: {
+        draft_reply: {
+          enabled: true,
+          title: 'Draft reply',
+          description: 'Generate a draft reply',
+          template: 'Reply to {{customer}} about {{topic}}',
+          arguments: [
+            { name: 'customer', required: true },
+            { name: 'topic' },
+          ],
+        },
+        upstream_prompt: {
+          enabled: false,
+          description: 'Disable upstream prompt',
+        },
+      },
+    });
+  });
+
   it('should resolve server custom prompts before calling upstream MCP prompts', async () => {
     mockGetServerDao.findById.mockResolvedValue({
       name: 'server-a',

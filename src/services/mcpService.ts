@@ -1459,10 +1459,11 @@ export const getServersInfo = async (
             }
           : undefined,
         config:
-          resolvedType || serverConfig?.description
+          resolvedType || serverConfig?.description || serverConfig?.prompts
             ? {
                 ...(resolvedType ? { type: resolvedType } : {}),
                 ...(serverConfig?.description ? { description: serverConfig.description } : {}),
+                ...(serverConfig?.prompts ? { prompts: serverConfig.prompts } : {}),
               }
             : undefined,
       };
