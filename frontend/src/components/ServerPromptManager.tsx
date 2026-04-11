@@ -9,22 +9,22 @@ import {
   getCustomPromptDrafts,
   ServerCustomPromptDraft,
 } from '@/utils/serverPromptConfigs';
+import {
+  createEditablePromptArgument,
+  createEditablePromptDraft,
+  EditableServerPromptDraft,
+  toEditablePromptDrafts,
+  toServerCustomPromptDrafts,
+  updateEditablePromptArgumentById,
+  updateEditablePromptById,
+} from '@/utils/serverPromptManagerState';
 
 interface ServerPromptManagerProps {
   server: Server;
   onRefresh?: () => void;
 }
 
-const createEmptyPrompt = (): ServerCustomPromptDraft => ({
-  name: '',
-  title: '',
-  description: '',
-  template: '',
-  enabled: true,
-  arguments: [],
-});
-
-const hasPromptContent = (prompt: ServerCustomPromptDraft) =>
+const hasPromptContent = (prompt: Pick<ServerCustomPromptDraft, 'name' | 'title' | 'description' | 'template' | 'arguments'>) =>
   Boolean(
     prompt.name.trim() ||
       prompt.title?.trim() ||
@@ -41,11 +41,11 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
   const { showToast } = useToast();
   const { nameSeparator } = useSettingsData();
   const initialDrafts = useMemo(
-    () => getCustomPromptDrafts(server.config, server.name, nameSeparator),
+    () => toEditablePromptDrafts(getCustomPromptDrafts(server.config, server.name, nameSeparator)),
     [server.config, server.name, nameSeparator],
   );
 
-  const [drafts, setDrafts] = useState<ServerCustomPromptDraft[]>(initialDrafts);
+  const [drafts, setDrafts] = useState<EditableServerPromptDraft[]>(initialDrafts);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -57,58 +57,42 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
   }, [initialDrafts, isDirty]);
 
   const handleDraftChange = (
-    promptIndex: number,
+    promptId: string,
     field: 'name' | 'title' | 'description' | 'template' | 'enabled',
     value: string | boolean,
   ) => {
-    setDrafts((prev) =>
-      prev.map((prompt, index) => (index === promptIndex ? { ...prompt, [field]: value } : prompt)),
-    );
+    setDrafts((prev) => updateEditablePromptById(prev, promptId, { [field]: value }));
     setIsDirty(true);
   };
 
   const handleArgumentChange = (
-    promptIndex: number,
-    argumentIndex: number,
+    promptId: string,
+    argumentId: string,
     field: keyof PromptArgument,
     value: string | boolean,
   ) => {
-    setDrafts((prev) =>
-      prev.map((prompt, index) =>
-        index === promptIndex
-          ? {
-              ...prompt,
-              arguments: (prompt.arguments || []).map((argument, idx) =>
-                idx === argumentIndex ? { ...argument, [field]: value } : argument,
-              ),
-            }
-          : prompt,
-      ),
-    );
+    setDrafts((prev) => updateEditablePromptArgumentById(prev, promptId, argumentId, { [field]: value }));
     setIsDirty(true);
   };
 
   const addPrompt = () => {
-    setDrafts((prev) => [...prev, createEmptyPrompt()]);
+    setDrafts((prev) => [...prev, createEditablePromptDraft()]);
     setIsExpanded(true);
     setIsDirty(true);
   };
 
-  const removePrompt = (promptIndex: number) => {
-    setDrafts((prev) => prev.filter((_, index) => index !== promptIndex));
+  const removePrompt = (promptId: string) => {
+    setDrafts((prev) => prev.filter((draft) => draft.id !== promptId));
     setIsDirty(true);
   };
 
-  const addArgument = (promptIndex: number) => {
+  const addArgument = (promptId: string) => {
     setDrafts((prev) =>
-      prev.map((prompt, index) =>
-        index === promptIndex
+      prev.map((prompt) =>
+        prompt.id === promptId
           ? {
               ...prompt,
-              arguments: [
-                ...(prompt.arguments || []),
-                { name: '', description: '', required: false },
-              ],
+              arguments: [...prompt.arguments, createEditablePromptArgument()],
             }
           : prompt,
       ),
@@ -116,13 +100,13 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
     setIsDirty(true);
   };
 
-  const removeArgument = (promptIndex: number, argumentIndex: number) => {
+  const removeArgument = (promptId: string, argumentId: string) => {
     setDrafts((prev) =>
-      prev.map((prompt, index) =>
-        index === promptIndex
+      prev.map((prompt) =>
+        prompt.id === promptId
           ? {
               ...prompt,
-              arguments: (prompt.arguments || []).filter((_, idx) => idx !== argumentIndex),
+              arguments: prompt.arguments.filter((argument) => argument.id !== argumentId),
             }
           : prompt,
       ),
@@ -153,7 +137,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
 
     setIsSaving(true);
     try {
-      const result = await saveServerCustomPrompts(server.name, drafts);
+      const result = await saveServerCustomPrompts(server.name, toServerCustomPromptDrafts(drafts));
       if (result.success) {
         showToast(t('prompt.customPromptSaveSuccess'), 'success');
         setIsDirty(false);
@@ -208,14 +192,14 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
             <div className="text-sm text-gray-500">{t('builtinPrompts.addFirst')}</div>
           ) : (
             drafts.map((prompt, promptIndex) => (
-              <div key={`${prompt.name || 'prompt'}-${promptIndex}`} className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
+              <div key={prompt.id} className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-gray-800">
                     {prompt.name || `Prompt ${promptIndex + 1}`}
                   </h3>
                   <button
                     type="button"
-                    onClick={() => removePrompt(promptIndex)}
+                    onClick={() => removePrompt(prompt.id)}
                     className="rounded p-1 text-gray-500 hover:bg-red-50 hover:text-red-600 btn-danger"
                     title={t('builtinPrompts.delete')}
                   >
@@ -231,7 +215,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                     <input
                       type="text"
                       value={prompt.name}
-                      onChange={(e) => handleDraftChange(promptIndex, 'name', e.target.value)}
+                      onChange={(e) => handleDraftChange(prompt.id, 'name', e.target.value)}
                       className="w-full rounded border px-3 py-2 text-gray-700 focus:outline-none focus:shadow-outline form-input"
                       placeholder={t('builtinPrompts.namePlaceholder')}
                     />
@@ -243,7 +227,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                     <input
                       type="text"
                       value={prompt.title || ''}
-                      onChange={(e) => handleDraftChange(promptIndex, 'title', e.target.value)}
+                      onChange={(e) => handleDraftChange(prompt.id, 'title', e.target.value)}
                       className="w-full rounded border px-3 py-2 text-gray-700 focus:outline-none focus:shadow-outline form-input"
                       placeholder={t('builtinPrompts.titlePlaceholder')}
                     />
@@ -257,7 +241,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                   <input
                     type="text"
                     value={prompt.description || ''}
-                    onChange={(e) => handleDraftChange(promptIndex, 'description', e.target.value)}
+                    onChange={(e) => handleDraftChange(prompt.id, 'description', e.target.value)}
                     className="w-full rounded border px-3 py-2 text-gray-700 focus:outline-none focus:shadow-outline form-input"
                     placeholder={t('builtinPrompts.descriptionPlaceholder')}
                   />
@@ -270,7 +254,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                   <textarea
                     rows={5}
                     value={prompt.template}
-                    onChange={(e) => handleDraftChange(promptIndex, 'template', e.target.value)}
+                    onChange={(e) => handleDraftChange(prompt.id, 'template', e.target.value)}
                     className="w-full rounded border px-3 py-2 font-mono text-sm text-gray-700 focus:outline-none focus:shadow-outline"
                     placeholder={t('builtinPrompts.templatePlaceholder')}
                   />
@@ -284,23 +268,23 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                     </label>
                     <button
                       type="button"
-                      onClick={() => addArgument(promptIndex)}
+                      onClick={() => addArgument(prompt.id)}
                       className="text-sm text-blue-600 hover:text-blue-800"
                     >
                       + {t('builtinPrompts.addArgument')}
                     </button>
                   </div>
 
-                  {(prompt.arguments || []).map((argument, argumentIndex) => (
+                  {prompt.arguments.map((argument) => (
                     <div
-                      key={`${argument.name || 'arg'}-${argumentIndex}`}
+                      key={argument.id}
                       className="mb-2 grid grid-cols-1 items-center gap-2 md:grid-cols-[1fr_1fr_auto_auto]"
                     >
                       <input
                         type="text"
                         value={argument.name}
                         onChange={(e) =>
-                          handleArgumentChange(promptIndex, argumentIndex, 'name', e.target.value)
+                          handleArgumentChange(prompt.id, argument.id, 'name', e.target.value)
                         }
                         className="rounded border px-3 py-2 text-gray-700 focus:outline-none focus:shadow-outline form-input"
                         placeholder={t('builtinPrompts.argName')}
@@ -310,8 +294,8 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                         value={argument.description || ''}
                         onChange={(e) =>
                           handleArgumentChange(
-                            promptIndex,
-                            argumentIndex,
+                            prompt.id,
+                            argument.id,
                             'description',
                             e.target.value,
                           )
@@ -325,8 +309,8 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                           checked={argument.required || false}
                           onChange={(e) =>
                             handleArgumentChange(
-                              promptIndex,
-                              argumentIndex,
+                              prompt.id,
+                              argument.id,
                               'required',
                               e.target.checked,
                             )
@@ -337,7 +321,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                       </label>
                       <button
                         type="button"
-                        onClick={() => removeArgument(promptIndex, argumentIndex)}
+                        onClick={() => removeArgument(prompt.id, argument.id)}
                         className="rounded px-2 py-1 text-sm text-gray-600 hover:bg-red-50 hover:text-red-600 btn-danger"
                       >
                         -
@@ -350,7 +334,7 @@ const ServerPromptManager = ({ server, onRefresh }: ServerPromptManagerProps) =>
                   <input
                     type="checkbox"
                     checked={prompt.enabled !== false}
-                    onChange={(e) => handleDraftChange(promptIndex, 'enabled', e.target.checked)}
+                    onChange={(e) => handleDraftChange(prompt.id, 'enabled', e.target.checked)}
                     className="mr-2"
                   />
                   {t('builtinPrompts.enabled')}
