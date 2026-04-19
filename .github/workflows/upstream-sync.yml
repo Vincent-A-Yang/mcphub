@@ -1,0 +1,52 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout fork main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/samanhappy/mcphub.git
+          git fetch upstream main
+
+      - name: Refresh upstream-sync branch
+        run: |
+          if git show-ref --verify --quiet refs/heads/upstream-sync; then
+            git checkout upstream-sync
+          else
+            git checkout -b upstream-sync
+          fi
+          git reset --hard upstream/main
+          git push origin upstream-sync --force
+
+      - name: Create or update PR from upstream-sync to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="$(gh pr list --base main --head upstream-sync --json number --jq '.[0].number')"
+          if [ -n "$PR_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" --title "Sync upstream mcphub" --body "Automated upstream sync from samanhappy/mcphub into upstream-sync.\n\nThis PR intentionally does not force-merge into main. Review the diff and keep custom fixes and tests in place before merging."
+          else
+            gh pr create --base main --head upstream-sync --title "Sync upstream mcphub" --body "Automated upstream sync from samanhappy/mcphub into upstream-sync.\n\nThis PR intentionally does not force-merge into main. Review the diff and keep custom fixes and tests in place before merging."
+          fi

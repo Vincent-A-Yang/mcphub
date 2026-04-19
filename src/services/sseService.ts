@@ -504,7 +504,10 @@ async function createSessionWithId(
     `[SESSION REBUILD] Starting session rebuild for ID: ${sessionId}${username ? ` for user: ${username}` : ''}`,
   );
 
-  // Create a new server instance to ensure clean state
+  // Create a new server instance to ensure clean state.
+  // Reusing a cached server here can reconnect an already-bound protocol
+  // and trigger "Already connected to a transport" during session rebuild.
+  deleteMcpServer(sessionId);
   const server = getMcpServer(sessionId, group);
 
   const transport = new StreamableHTTPServerTransport({
