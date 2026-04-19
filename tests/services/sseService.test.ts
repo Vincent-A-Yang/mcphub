@@ -46,6 +46,7 @@ jest.mock('../../src/services/mcpService.js', () => ({
 
 import { handleMcpPostRequest } from '../../src/services/sseService.js';
 import * as mcpService from '../../src/services/mcpService.js';
+import * as streamableHttp from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 
 describe('sseService session rebuild', () => {
   it('rebuilds missing sessions with a fresh MCP server instance', async () => {
@@ -87,7 +88,7 @@ describe('sseService session rebuild', () => {
     } as any;
 
     const transportSpy = jest
-      .spyOn(require('@modelcontextprotocol/sdk/server/streamableHttp.js'), 'StreamableHTTPServerTransport')
+      .spyOn(streamableHttp, 'StreamableHTTPServerTransport')
       .mockImplementation(function MockTransport(this: any, options: any) {
         this.sessionId = 'session-rebuild';
         this.handleRequest = transportHandleRequest;
